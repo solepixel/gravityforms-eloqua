@@ -1,0 +1,1 @@
+<p><?php _e( 'This plugin needs to be setup first.', 'gfeloqua' ); ?> <a href="<?php echo $settings_page; ?>"><?php _e( 'Go here to connect to Eloqua.', 'gfeloqua' ); ?></a></p>
