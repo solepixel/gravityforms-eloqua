@@ -101,6 +101,7 @@ class Eloqua_API {
 
 		$url = $this->urls['standard'] . trim( $endpoint, '/' );
 		$args = $this->connection_args;
+		$args['method'] = $method;
 
 		if( count( $data ) ){
 			$args['body'] = json_encode( $data );
@@ -123,6 +124,12 @@ class Eloqua_API {
 			return false;
 
 		if( $response['response']['code'] == '200' && $response['body'] )
+			return json_decode( $response['body'] );
+
+		if( $response['response']['code'] == '201' && $response['body'] )
+			return json_decode( $response['body'] );
+
+		if( $response['response']['code'] == '202' && $response['body'] )
 			return json_decode( $response['body'] );
 
 		return false;

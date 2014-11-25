@@ -317,11 +317,12 @@ class GFEloqua extends GFFeedAddOn {
 		$form_id = $feed['meta']['gfeloqua_form'];
 
 		$form_submission = new stdClass();
-		$form_submission->elements = array(
-			'type' => 'FormData',
-			'id' => $form_id,
-			'fieldValues' => array()
-		);
+
+		$form_submission->id = (int) $form_id;
+		$form_submission->type = 'FormData';
+		$form_submission->submittedAt = (int) current_time( 'timestamp' );
+		$form_submission->submittedByContactId = NULL;
+		$form_submission->fieldValues = array();
 
 		foreach( $feed['meta'] as $key => $gf_field_id ){
 
@@ -332,11 +333,11 @@ class GFEloqua extends GFFeedAddOn {
 				$key = str_replace( 'mapped_fields_', '', $key );
 
 				$field_value = new stdClass();
+				$field_value->id = (int) $key;
 				$field_value->type = 'FieldValue';
-				$field_value->id = $key;
 				$field_value->value = $entry[ $gf_field_id ];
 
-				$form_submission->elements['fieldValues'][] = $field_value;
+				$form_submission->fieldValues[] = $field_value;
 			}
 		}
 
