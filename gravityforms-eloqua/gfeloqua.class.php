@@ -64,14 +64,14 @@ class GFEloqua extends GFFeedAddOn {
 						'tooltip'  => '<h6>' . __( 'Name', 'gfeloqua' ) . '</h6>' . __( 'Enter a feed name to uniquely identify this setup.', 'gfeloqua' ),
 					),
 					array(
-						'label'   => __( 'Eloqua Form', 'gfeloqua' ),
+						'label'   => __( 'Eloqua Form', 'gfeloqua' ) . ' <a href="#gfe-forms-refresh" class="gfe-refresh">Refresh</a>',
 						'type'    => 'eloqua_forms',
 						'onchange'   => 'jQuery(this).parents("form").submit();',
 						'name'    => 'gfeloqua_form'
 					),
 					array(
 						'name' => 'mapped_fields',
-						'label' => 'Map Fields <a href="#gfe-refresh" class="gfe-refresh">Refresh</a>',
+						'label' => __( 'Map Fields', 'gfeloqua' ) . ' <a href="#gfe-form-fields-refresh" class="gfe-refresh">Refresh</a>',
 						'type' => 'list_fields',
 						'dependency' => 'gfeloqua_form',
 						'tooltip'    => '<h6>' . __( 'Map Fields', 'gfeloqua' ) . '</h6>' . __( 'Associate your Eloqua custom fields to the appropriate Gravity Form fields by selecting the appropriate form field from the list.', 'gfeloqua' ),
@@ -251,9 +251,9 @@ class GFEloqua extends GFFeedAddOn {
 	}
 
 	public function clear_eloqua_transient(){
-		$form_id = isset( $_GET['form_id'] ) ? (int) sanitize_text_field( $_GET['form_id'] ) : false;
-		if( $form_id )
-			$this->eloqua->clear_transient( 'assets/form/' . $form_id );
+		$transient = isset( $_GET['transient'] ) ? (int) sanitize_text_field( $_GET['transient'] ) : false;
+		if( $transient )
+			$this->eloqua->clear_transient( $transient );
 
 		wp_send_json( array( 'success' => true ) );
 	}

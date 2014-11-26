@@ -9,6 +9,7 @@
 	font-size: 11px;
 }
 
-#gaddon-setting-row-mapped_fields .spinner {
+#gaddon-setting-row-mapped_fields .spinner,
+#gaddon-setting-row-gfeloqua_form .spinner {
 	float:left;
 }
