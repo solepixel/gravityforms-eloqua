@@ -38,6 +38,9 @@ class GFEloqua extends GFFeedAddOn {
 	public function init(){
 		parent::init();
 
+		$this->_maybe_store_settings();
+		$this->_maybe_clear_settings();
+
 		$this->eloqua = new Eloqua_API( $this->get_auth_string() );
 
 		add_action( 'wp_ajax_gfeloqua_clear_transient', array( $this, 'clear_eloqua_transient' ) );
@@ -173,8 +176,8 @@ class GFEloqua extends GFFeedAddOn {
 	public function get_auth_string(){
 		$auth_string = false;
 
-		if( $this->get_plugin_setting( 'sitename' ) && $this->get_plugin_setting( 'username' ) && $this->get_plugin_setting( 'password' ) ){
-			$auth_string = base64_encode( $this->get_plugin_setting( 'sitename' ) . '\\' . $this->get_plugin_setting( 'username' ) . ':' . $this->get_plugin_setting( 'password' ) );
+		if( $this->get_plugin_setting( 'authstring' ) ){
+			$auth_string = $this->get_plugin_setting( 'authstring' );
 		}
 
 		return $auth_string;
@@ -251,7 +254,7 @@ class GFEloqua extends GFFeedAddOn {
 	}
 
 	public function clear_eloqua_transient(){
-		$transient = isset( $_GET['transient'] ) ? (int) sanitize_text_field( $_GET['transient'] ) : false;
+		$transient = isset( $_GET['transient'] ) ? sanitize_text_field( $_GET['transient'] ) : false;
 		if( $transient )
 			$this->eloqua->clear_transient( $transient );
 
@@ -260,48 +263,53 @@ class GFEloqua extends GFFeedAddOn {
 
 	public function plugin_settings_fields() {
 
-		$fields = array(
-			array(
+		$this->_maybe_store_settings();
+		$this->_maybe_clear_settings();
+
+		$fields = array();
+
+		if( ! $this->get_auth_string() ){
+
+			$fields[] = array(
 				'name'    => 'sitename',
 				'tooltip' => __( 'Your Site Name is usually your company name without any spaces.', 'gfeloqua' ),
 				'label'   => __( 'Site Name', 'gfeloqua' ),
 				'type'    => 'text',
 				'class'   => 'medium'
-			),
-			array(
+			);
+			$fields[] = array(
 				'name'    => 'username',
 				'tooltip' => __( 'Your login user name', 'gfeloqua' ),
 				'label'   => __( 'Username', 'gfeloqua' ),
 				'type'    => 'text',
 				'class'   => 'medium'
-			),
-			array(
+			);
+			$fields[] = array(
 				'name'    => 'password',
 				'tooltip' => __( 'Your login password', 'gfeloqua' ),
 				'label'   => __( 'Password', 'gfeloqua' ),
 				'type'    => 'text',
 				'class'   => 'medium'
-			)
-		);
-
-		if( $this->get_auth_string() ){
-			// TODO: Hide credentials, store only AUTH.
-			foreach( $fields as &$field ){
-				$field['type'] = 'hidden';
-			}
-
+			);
+		} else {
 			$fields[] = array(
 				'type' => 'checkbox',
-				'name' => 'disconnect',
+				'name' => 'eloqua_disconnect',
 				'label' => __( 'Disconnect', 'gfeloqua' ),
 				'tooltip' => __( 'Disconnect your Eloqua account from Gravity Forms', 'gfeloqua' ),
 				'horizontal' => true,
 				'choices' => array(
 					array(
-						'name' => 'disconnect',
-						'label' => __( 'Your Eloqua settings are stored. To clear these settings, check this box and click "Update".', 'gfeloqua' )
+						'name' => 'eloqua_disconnect',
+						'label' => __( 'Your Eloqua settings are securely stored. To clear these settings, check this box and click "Update".', 'gfeloqua' )
 					)
 				)
+			);
+			$fields[] = array(
+				'name'    => 'authstring',
+				'label'   => __( 'Securely stored Eloqua Auth String', 'gfeloqua' ),
+				'type'    => 'hidden',
+				'default_value' => $this->generate_auth_string()
 			);
 		}
 
@@ -311,6 +319,49 @@ class GFEloqua extends GFFeedAddOn {
 				'fields' => $fields
 			)
 		);
+	}
+
+	function _maybe_clear_settings(){
+		if( $this->is_save_postback() ) {
+
+			$posted = $this->get_posted_settings();
+
+			if( isset( $posted['eloqua_disconnect'] ) && $posted['eloqua_disconnect'] == '1' ){
+
+				$this->update_plugin_settings( __return_empty_array() );
+			}
+		}
+	}
+
+	function _maybe_store_settings(){
+		// check for backwards compatibility
+		$settings = $this->get_plugin_settings();
+
+		if( $authstring = $this->generate_auth_string( $settings ) ){
+			$settings = array( 'authstring' => $authstring );
+			$this->update_plugin_settings( $settings );
+		}
+
+		if( $this->is_save_postback() ) {
+
+			if( $authstring = $this->generate_auth_string() ){
+
+				$settings = array( 'authstring' => $authstring );
+
+				$this->update_plugin_settings( $settings );
+			}
+		}
+	}
+
+	function generate_auth_string( $source_array = array() ){
+		$authstring = '';
+		$source_array = $source_array ? $source_array : $this->get_posted_settings();
+
+		if( isset( $source_array['sitename'] ) && $source_array['sitename'] && isset( $source_array['username'] ) && $source_array['username'] && isset( $source_array['password'] ) && $source_array['password'] ){
+			$authstring = base64_encode( $source_array['sitename'] . '\\' . $source_array['username'] . ':' . $source_array['password'] );
+		}
+
+		return $authstring;
 	}
 
 	public function process_feed( $feed, $entry, $form ){

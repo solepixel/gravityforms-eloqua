@@ -10,9 +10,9 @@ Integrate Eloqua Forms with Gravity Forms
 
 == Description ==
 
-> This plugin requires a <a href="https://eloqua.com/" rel="nofollow">Eloqua</a> account.
+> This plugin requires an <a href="https://eloqua.com/" rel="nofollow">Eloqua</a> account.
 
-###Integrate Eloqua with Gravity Forms
+###Integrate Constant Contact with Gravity Forms
 If you use <strong>Eloqua</strong> email service and the Gravity Forms plugin, you're going to want this plugin!
 
 Integrate your Gravity Forms forms so that when users submit a form entry, the entries get added to Eloqua. Link any field type with Eloqua, including custom fields!
@@ -33,5 +33,13 @@ Coming Soon
 Coming Soon
 
 == Upgrade Notice ==
+= 1.1.0 =
+* setup securely stored auth string
+* fixed bug with clearing transients
+* minor bug fixes
+
+= 1.0.1 =
+* Added refresh buttons to clear transients
+
 = 1.0 =
 * Launched plugin
