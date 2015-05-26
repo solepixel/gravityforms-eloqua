@@ -1,7 +1,7 @@
 === Gravity Forms Eloqua ===
 Tags: gravity forms, forms, gravity, form, crm, gravity form, mail, email, newsletter, Eloqua, Oracle, plugin, sidebar, widget, mailing list, API, email marketing, newsletters
 Requires at least: 2.8
-Tested up to: 4.0.0
+Tested up to: 4.2.2
 Stable tag: trunk
 Contributors: briandichiara
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7YY68G8HTZ69W
@@ -12,7 +12,7 @@ Integrate Eloqua Forms with Gravity Forms
 
 > This plugin requires an <a href="https://eloqua.com/" rel="nofollow">Eloqua</a> account.
 
-###Integrate Constant Contact with Gravity Forms
+###Integrate Eloqua with Gravity Forms
 If you use <strong>Eloqua</strong> email service and the Gravity Forms plugin, you're going to want this plugin!
 
 Integrate your Gravity Forms forms so that when users submit a form entry, the entries get added to Eloqua. Link any field type with Eloqua, including custom fields!
@@ -33,6 +33,17 @@ Coming Soon
 Coming Soon
 
 == Upgrade Notice ==
+= 1.2.1 =
+* added select2 to find Eloqua forms easier
+* fixed javascript spinner bug
+
+= 1.2.0 =
+* NOTE: Changed plugin slug to fix Issue #4. Your settings may need to be reset.
+* added OAuth support
+* added credential validation to settings page
+* fixed Issue #4 Gravity Forms Registration Warning
+* fixed Issue #5 Error "This add-on needs to be updated. Please contact the developer."
+
 = 1.1.0 =
 * setup securely stored auth string
 * fixed bug with clearing transients

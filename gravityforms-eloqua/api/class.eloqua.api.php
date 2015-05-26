@@ -15,23 +15,41 @@ class Eloqua_API {
 	var $connection;
 	var $connection_args = array();
 
-	var $auth_string;
+	var $authstring;
+	var $use_oauth = false;
 
 	var $basic_auth_url = 'https://login.eloqua.com/id';
-
-	var $client_id = '';
-
 	var $rest_api_version = '2.0';
 
-	function __construct( $auth_string = '', $callback_url = '' ){
-		if( $auth_string )
-			$this->auth_string = $auth_string;
+	var $_oauth_authorize_url = 'https://login.eloqua.com/auth/oauth2/authorize';
+	var $_oauth_token_url = 'https://login.eloqua.com/auth/oauth2/token';
+
+	var $_oauth_client_id = '11c8590a-f513-496a-aa9c-4a224dd92861';
+	var $_oauth_client_secret = '15325mypy7U2JFaTg35mF8ekItAyOdiOwfsZBx2dbHEECNecqSy9KK5ammgNlEhMwhhEav1te0hP8hdmQ1KaZjY1z9yQLlaGkQgP';
+	var $_oauth_redirect_uri = 'https://api.briandichiara.com/gravityformseloqua/';
+	var $_oauth_scope = 'full';
+
+	function __construct( $authstring = '', $use_oauth = false ){
+		if( $authstring )
+			$this->authstring = $authstring;
+
+		$this->use_oauth = $use_oauth;
+	}
+
+	function get_oauth_url( $source = false ){
+		$url = $this->_oauth_authorize_url .
+			'?response_type=code&client_id=' . $this->_oauth_client_id .
+			'&scope=' . urlencode( $this->_oauth_scope ) .
+			'&redirect_uri=' . urlencode( $this->_oauth_redirect_uri );
+
+		if( $source )
+			$url .= '&source=' . urlencode( $source );
+
+		return $url;
 	}
 
 	function get_auth_url(){
-		$auth_url = $this->basic_auth_url;
-
-		return $auth_url;
+		return $this->basic_auth_url;
 	}
 
 	function init( $connection = false ){
@@ -59,27 +77,33 @@ class Eloqua_API {
 		if( $this->init() )
 			return true;
 
+		$type = $this->use_oauth ? 'Bearer' : 'Basic';
+
 		$this->connection_args = array(
 			'headers' => array(
-				'Authorization' => 'Basic ' . $this->auth_string
+				'Authorization' => $type . ' ' . $this->authstring
 			)
 		);
 
 		$this->connection = new WP_Http();
 		$response = $this->connection->request( $this->get_auth_url(), $this->connection_args );
 
-		/*if( $response['code'] == '401' ){
-			delete_transient( 'gfeloqua_connection' );
-		}*/
+		if( is_wp_error( $response ) ){
+			echo $response->get_error_message();
+			return false;
+		}
 
 		$connection = json_decode( $response['body'] );
 
-		if( is_object( $connection ) ){
+		if( is_object( $connection ) )
 			return $this->init( $connection );
-		}
+
+		// Looks like the credentials are bad.
+		if( is_string( $connection ) && strpos( strtolower( $connection ), 'not authenticated' ) !== false )
+			return false;
 
 		// Something went wrong. Probably an error
-		echo $connection;
+		#echo $connection;
 
 		return false;
 
@@ -199,6 +223,7 @@ class Eloqua_API {
 
 	public function submit_form( $form_id, $submission ){
 		$response = $this->_call( 'data/form/' . $form_id, $submission, 'POST' );
+
 		if( $response )
 			return true;
 		else

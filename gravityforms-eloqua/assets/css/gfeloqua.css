@@ -13,3 +13,7 @@
 #gaddon-setting-row-gfeloqua_form .spinner {
 	float:left;
 }
+
+table.gforms_form_settings .settings-field-map-table th {
+	padding-left:0;
+}

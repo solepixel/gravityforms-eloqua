@@ -11,7 +11,7 @@ jQuery(function($){
 		if( ! form_id )
 			return false;
 
-		$spinner.show();
+		$spinner.show().css('visibility','visible');
 		$mapped_fields.find( 'table' ).hide();
 		$mapped_fields.append( $spinner );
 
@@ -27,7 +27,6 @@ jQuery(function($){
 		});
 	}
 
-
 	$('a[href$="#gfe-form-fields-refresh"]').on('click', function(e){
 		e.preventDefault();
 		gfeloqua_clear_form_transient();
@@ -39,8 +38,8 @@ jQuery(function($){
 		var $spinner = $('<div />').addClass('spinner'),
 			$form_list = $('#gaddon-setting-row-gfeloqua_form td');
 
-		$spinner.show();
-		$form_list.find( 'select' ).hide();
+		$spinner.show().css('visibility','visible')
+		$form_list.find( 'select,.select2-container' ).hide();
 		$form_list.append( $spinner );
 
 		$.ajax({
@@ -61,4 +60,45 @@ jQuery(function($){
 		return false;
 	});
 
+	function PopupCenter(url, title, w, h) {
+		// Fixes dual-screen position                         Most browsers      Firefox
+		var dualScreenLeft = window.screenLeft != undefined ? window.screenLeft : screen.left;
+		var dualScreenTop = window.screenTop != undefined ? window.screenTop : screen.top;
+
+		width = window.innerWidth ? window.innerWidth : document.documentElement.clientWidth ? document.documentElement.clientWidth : screen.width;
+		height = window.innerHeight ? window.innerHeight : document.documentElement.clientHeight ? document.documentElement.clientHeight : screen.height;
+
+		var left = ((width / 2) - (w / 2)) + dualScreenLeft;
+		var top = ((height / 2) - (h / 2)) + dualScreenTop;
+		var newWindow = window.open(url, title, 'scrollbars=yes, chrome=yes, menubar=no, toolbar=no, width=' + w + ', height=' + h + ', top=' + top + ', left=' + left);
+
+		// Puts focus on the newWindow
+		if (window.focus) {
+			newWindow.focus();
+		}
+	}
+
+	$('#gfeloqua_oauth').on('click', function(e){
+		e.preventDefault();
+
+		var href = $(this).attr('href'),
+			width = $(this).data('width') ? $(this).data('width') : 600,
+			height = $(this).data('height') ? $(this).data('height') : 600;
+
+		PopupCenter( href, 'wclsc_oauth', width, height );
+
+		$(this).hide();
+		$('#gfeloqua_oauth_code').show();
+
+		return false;
+	});
+
+	if( $.fn.select2 && $('#gfeloqua_form').length ){
+		$('#gfeloqua_form').select2({
+			minimumResultsForSearch: 10,
+			width: '100%'
+		}).on('change', function(){
+			$(this).parents('form').submit();
+		});
+	}
 });
