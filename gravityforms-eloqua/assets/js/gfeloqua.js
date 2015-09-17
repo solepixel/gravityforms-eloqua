@@ -1,4 +1,4 @@
-var gfeloqua_clear_form_transient, gfeloqua_clear_forms_transient;
+var gfeloqua_clear_form_transient, gfeloqua_clear_forms_transient, gfeloqua_oauth_window;
 
 jQuery(function($){
 
@@ -70,12 +70,13 @@ jQuery(function($){
 
 		var left = ((width / 2) - (w / 2)) + dualScreenLeft;
 		var top = ((height / 2) - (h / 2)) + dualScreenTop;
-		var newWindow = window.open(url, title, 'scrollbars=yes, chrome=yes, menubar=no, toolbar=no, width=' + w + ', height=' + h + ', top=' + top + ', left=' + left);
+		gfeloqua_oauth_window = window.open(url, title, 'scrollbars=yes, chrome=yes, menubar=no, toolbar=no, width=' + w + ', height=' + h + ', top=' + top + ', left=' + left);
 
 		// Puts focus on the newWindow
 		if (window.focus) {
-			newWindow.focus();
+			gfeloqua_oauth_window.focus();
 		}
+		return gfeloqua_oauth_window;
 	}
 
 	$('#gfeloqua_oauth').on('click', function(e){
@@ -85,16 +86,28 @@ jQuery(function($){
 			width = $(this).data('width') ? $(this).data('width') : 600,
 			height = $(this).data('height') ? $(this).data('height') : 600;
 
-		PopupCenter( href, 'wclsc_oauth', width, height );
+		var new_window = PopupCenter( href, 'wclsc_oauth', width, height );
 
 		$(this).hide();
 		$('#gfeloqua_oauth_code').show();
 
+		var repeat_checks = function(){
+			setTimeout( function(){
+				if( new_window.closed ){
+					location.reload( true );
+				} else {
+					repeat_checks();
+				}
+			}, 500 );
+		};
+
+		repeat_checks();
+
 		return false;
 	});
 
-	if( $.fn.select2 && $('#gfeloqua_form').length ){
-		$('#gfeloqua_form').select2({
+	if( $.fn.select2 && $('select#gfeloqua_form').length ){
+		$('select#gfeloqua_form').select2({
 			minimumResultsForSearch: 10,
 			width: '100%'
 		}).on('change', function(){

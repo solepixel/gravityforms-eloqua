@@ -37,10 +37,14 @@ class Eloqua_API {
 	}
 
 	function get_oauth_url( $source = false ){
+		$return_url = admin_url( 'admin.php?page=gf_settings&subview=gravityformseloqua' );
+		$return_url = str_replace( array( 'http://', 'https://' ), '', $return_url );
+
 		$url = $this->_oauth_authorize_url .
 			'?response_type=code&client_id=' . $this->_oauth_client_id .
 			'&scope=' . urlencode( $this->_oauth_scope ) .
-			'&redirect_uri=' . urlencode( $this->_oauth_redirect_uri );
+			'&redirect_uri=' . urlencode( $this->_oauth_redirect_uri ) .
+			'&state=' . $return_url;
 
 		if( $source )
 			$url .= '&source=' . urlencode( $source );

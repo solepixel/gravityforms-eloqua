@@ -27,6 +27,8 @@ class GFEloqua extends GFFeedAddOn {
 
 	protected $eloqua;
 
+	protected $token_auto_generated = false;
+
 	public static function get_instance() {
 		if ( self::$_instance == null ) {
 			self::$_instance = new GFEloqua();
@@ -54,6 +56,8 @@ class GFEloqua extends GFFeedAddOn {
 		}
 
 		add_action( 'admin_init', array( $this, 'insert_version_data' ) );
+		add_action( 'admin_init', array( $this, 'handle_oauth_code' ) );
+		add_action( 'admin_head', array( $this, 'close_oauth_window' ) );
 	}
 
 	/**
@@ -243,6 +247,7 @@ class GFEloqua extends GFFeedAddOn {
 			$use_oauth = (bool) get_option( GFELOQUA_OPT_PREFIX . 'use_oauth', ! $use_basic );
 		}
 
+
 		$test = new Eloqua_API( $connection_string, $use_oauth );
 
 		if( ! $test->connect() ){
@@ -315,6 +320,30 @@ class GFEloqua extends GFFeedAddOn {
 		return true;
 	}
 
+	function handle_oauth_code(){
+		if( ! isset( $_GET['gfeloqua-oauth-code'] ) )
+			return;
+
+		if( ! $_GET['gfeloqua-oauth-code'] )
+			return;
+
+		$oauth_code = sanitize_text_field( $_GET['gfeloqua-oauth-code'] );
+
+		if( ! $oauth_code )
+			return;
+
+		if( $this->generate_oauth_token( $oauth_code ) ){
+			$this->token_auto_generated = true;
+		}
+	}
+
+	function close_oauth_window(){
+		if( ! $this->token_auto_generated )
+			return;
+
+		echo '<script>window.close();</script>';
+	}
+
 	function get_connection_string(){
 		$use_basic = get_option( GFELOQUA_OPT_PREFIX . 'auth_basic' );
 		$use_oauth = (bool) get_option( GFELOQUA_OPT_PREFIX . 'use_oauth', ! $use_basic );
@@ -351,16 +380,22 @@ class GFEloqua extends GFFeedAddOn {
 	}
 
 	public function validate_settings( $fields, $settings ){
-		if( $this->get_connection_string() && ! $this->test_authentication() )
-			return false;
-
 		if( $this->is_switch() || $this->is_disconnect() )
 			return true;
+
+		if( ! $this->get_connection_string() )
+			return false;
+
+		if( $this->get_connection_string() && ! $this->test_authentication() )
+			return false;
 
 		return parent::validate_settings( $fields, $settings );
 	}
 
 	public function get_save_error_message( $sections ){
+		if( ! $this->get_connection_string() )
+			return __( 'Unable to connect to Eloqua. Invalid authentication credentials. (Invalid Connection String)', 'gfeloqua' );
+
 		if( $this->get_connection_string() && ! $this->test_authentication() )
 			return __( 'Unable to connect to Eloqua. Invalid authentication credentials.', 'gfeloqua' );
 
@@ -537,7 +572,7 @@ class GFEloqua extends GFFeedAddOn {
 					)
 				)
 			);
-		} else {
+		} elseif( $authenticated ){
 			$title = __( 'Clear Authentication Credentials', 'gfeloqua' );
 
 			$fields[] = array(
@@ -553,6 +588,8 @@ class GFEloqua extends GFFeedAddOn {
 					)
 				)
 			);
+		} else {
+			$title = __( 'There was a problem. Please contact plugin author.', 'gfeloqua' );
 		}
 
 		return array(
@@ -572,6 +609,38 @@ class GFEloqua extends GFFeedAddOn {
 
 		if( ! $authstring )
 			$authstring = $this->generate_authstring();
+
+		return $authstring;
+	}
+
+	function generate_authstring( $source_array = array() ){
+		$authstring = '';
+		$posted = array();
+
+		if( $this->is_save_postback() ){
+			$posted = $this->get_posted_settings();
+		}
+
+		if( $source_array )
+			$posted = $source_array;
+
+		if( ! $posted )
+			return $authstring;
+
+		$sitename = isset( $posted['sitename'] ) && $posted['sitename'] ? trim( $posted['sitename'] ) : '';
+		$username = isset( $posted['username'] ) && $posted['username'] ? trim( $posted['username'] ) : '';
+		$password = isset( $posted['password'] ) && $posted['password'] ? trim( $posted['password'] ) : '';
+
+		if( $sitename && $username && $password )
+			$authstring = base64_encode( "{$sitename}\\{$username}:{$password}" );
+
+		if( $authstring ){
+			if( $this->test_authentication( $authstring ) ){
+				update_option( GFELOQUA_OPT_PREFIX . 'authstring', $authstring );
+			} else {
+				$authstring = '';
+			}
+		}
 
 		return $authstring;
 	}
@@ -658,99 +727,72 @@ class GFEloqua extends GFFeedAddOn {
 		}
 	}
 
-	function generate_authstring( $source_array = array() ){
-		$authstring = '';
-		$posted = array();
-
-		if( $this->is_save_postback() ){
-			$posted = $this->get_posted_settings();
-		}
-
-		if( $source_array )
-			$posted = $source_array;
-
-		if( ! $posted )
-			return $authstring;
-
-		$sitename = isset( $posted['sitename'] ) && $posted['sitename'] ? trim( $posted['sitename'] ) : '';
-		$username = isset( $posted['username'] ) && $posted['username'] ? trim( $posted['username'] ) : '';
-		$password = isset( $posted['password'] ) && $posted['password'] ? trim( $posted['password'] ) : '';
-
-		if( $sitename && $username && $password )
-			$authstring = base64_encode( "{$sitename}\\{$username}:{$password}" );
-
-		if( $authstring ){
-			if( $this->test_authentication( $authstring ) ){
-				update_option( GFELOQUA_OPT_PREFIX . 'authstring', $authstring );
-			} else {
-				$authstring = '';
-			}
-		}
-
-		return $authstring;
-	}
-
-	public function generate_oauth_token(){
+	public function generate_oauth_token( $code = false ){
 		if( $this->is_save_postback() ){
 			$param = GFELOQUA_OPT_PREFIX . 'oauth_code';
 			$code = isset( $_POST[ $param ] ) ? sanitize_text_field( $_POST[ $param ] ) : '';
+		}
 
-			if( $code ){
+		if( ! $code )
+			return false;
 
-				if( ! $this->eloqua )
-					$this->eloqua = new Eloqua_API();
+		if( ! $this->eloqua )
+			$this->eloqua = new Eloqua_API();
 
-				$client_id = $this->eloqua->_oauth_client_id;
-				$client_secret = $this->eloqua->_oauth_client_secret;
-				$token_url = $this->eloqua->_oauth_token_url;
+		$client_id = $this->eloqua->_oauth_client_id;
+		$client_secret = $this->eloqua->_oauth_client_secret;
+		$token_url = $this->eloqua->_oauth_token_url;
 
-				$basic_auth = $client_id . ':' . $client_secret . '@';
+		$basic_auth = $client_id . ':' . $client_secret . '@';
 
-				$url = str_replace( array( 'http://','https://' ), 'https://' . $basic_auth, $token_url );
+		$url = str_replace( array( 'http://','https://' ), 'https://' . $basic_auth, $token_url );
 
-				$args = array(
-					'code' => $code,
-					'grant_type' => 'authorization_code',
-					'redirect_uri' => $this->eloqua->_oauth_redirect_uri
-				);
+		$args = array(
+			'code' => $code,
+			'grant_type' => 'authorization_code',
+			'redirect_uri' => $this->eloqua->_oauth_redirect_uri
+		);
 
-				$args_string = json_encode( $args );
+		$args_string = json_encode( $args );
 
-				$ch = curl_init();
-				curl_setopt( $ch, CURLOPT_URL, $url );
-				curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-				curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
+		$ch = curl_init();
+		curl_setopt( $ch, CURLOPT_URL, $url );
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
 
-				curl_setopt( $ch, CURLOPT_CUSTOMREQUEST, 'POST' );
-				curl_setopt( $ch, CURLOPT_POSTFIELDS, $args_string );
-				curl_setopt( $ch, CURLOPT_HTTPHEADER, array(
-					'Content-Type: application/json',
-					'Content-Length: ' . strlen( $args_string ) )
-				);
+		curl_setopt( $ch, CURLOPT_CUSTOMREQUEST, 'POST' );
+		curl_setopt( $ch, CURLOPT_POSTFIELDS, $args_string );
+		curl_setopt( $ch, CURLOPT_HTTPHEADER, array(
+			'Content-Type: application/json',
+			'Content-Length: ' . strlen( $args_string ) )
+		);
 
-				$response = curl_exec( $ch );
-				$json = json_decode( $response );
+		$response = curl_exec( $ch );
+		$json = json_decode( $response );
 
-				if( $json ){
-					if( isset( $json->error ) ){
-						// invalid grant probably.. need to find a place to log errors.
-					} else {
-						/**
-						 * public 'access_token' => string
-						 * public 'expires_in' => int 28800
-						 * public 'token_type' => string 'bearer' (length=6)
-						 * public 'refresh_token' => string
-						 */
-						$oauth_token = $json->access_token;
-						update_option( GFELOQUA_OPT_PREFIX . 'oauth_token', $oauth_token );
+		if( $json ){
+			if( isset( $json->error ) ){
+				// invalid grant probably.. need to find a place to log errors.
+			} elseif( isset( $json->access_token ) ) {
+				/**
+				 * public 'access_token' => string
+				 * public 'expires_in' => int 28800
+				 * public 'token_type' => string 'bearer' (length=6)
+				 * public 'refresh_token' => string
+				 */
+				$oauth_token = $json->access_token;
+				update_option( GFELOQUA_OPT_PREFIX . 'oauth_token', $oauth_token );
 
-						if( isset( $json->refresh_token ) && $json->refresh_token ){
-							update_option( GFELOQUA_OPT_PREFIX . 'oauth_refresh_token', $json->refresh_token );
-						}
-
-						return $oauth_token;
-					}
+				if( isset( $json->token_type ) && $json->token_type ){
+					update_option( GFELOQUA_OPT_PREFIX . 'oauth_token_type', $json->token_type );
 				}
+				if( isset( $json->refresh_token ) && $json->refresh_token ){
+					update_option( GFELOQUA_OPT_PREFIX . 'oauth_refresh_token', $json->refresh_token );
+				}
+
+				return $oauth_token;
+			} else {
+				// no idea, need to log errors.
 			}
 		}
 
