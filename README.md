@@ -3,9 +3,6 @@
 This will integrate Gravity Forms with your Eloqua forms.
 
 == Changelog ==
-= 1.2.2 =
-* added better OAuth setup, no longer needs code copy/paste
-* added better error message when can't connect to Eloqua
 
 = 1.2.2 =
 * added better OAuth setup, no longer needs code copy/paste
