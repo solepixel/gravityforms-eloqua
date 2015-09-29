@@ -55,9 +55,17 @@ class GFEloqua extends GFFeedAddOn {
 			wp_enqueue_script( 'gform_form_admin' );
 		}
 
+		// this fixes the update notice on the plugins page
 		add_action( 'admin_init', array( $this, 'insert_version_data' ) );
+
+		// oauth actions
 		add_action( 'admin_init', array( $this, 'handle_oauth_code' ) );
 		add_action( 'admin_head', array( $this, 'close_oauth_window' ) );
+
+		// cron actions
+		add_action( 'gfeloqua_disconnect_notification', array( $this, 'disconnect_notification' ) );
+		if( ! wp_next_scheduled( 'gfeloqua_disconnect_notification' ) )
+			wp_schedule_event( time(), 'hourly', 'gfeloqua_disconnect_notification' );
 	}
 
 	/**
@@ -342,6 +350,8 @@ class GFEloqua extends GFFeedAddOn {
 			return;
 
 		echo '<script>window.close();</script>';
+		echo '<p style="text-align:center; padding:20px;">' . __( 'If this window does not close automatically, close it to continue.', 'gfeloqua' ) . '</p>';
+		exit();
 	}
 
 	function get_connection_string(){
@@ -437,10 +447,7 @@ class GFEloqua extends GFFeedAddOn {
 					);
 				}
 			} else {
-				$forms[] = array(
-					'label' => __( 'No Eloqua Forms were found.', 'gfeloqua' ),
-					'value' => ''
-				);
+				$forms[0]['label'] = __( 'No Eloqua Forms were found.', 'gfeloqua' );
 			}
 		}
 
@@ -584,7 +591,7 @@ class GFEloqua extends GFFeedAddOn {
 				'choices' => array(
 					array(
 						'name' => 'eloqua_disconnect',
-						'label' => __( 'Your Eloqua settings are securely stored. To clear these settings, check this box and click "Update".', 'gfeloqua' )
+						'label' => __( 'Your Eloqua settings are securely stored. To clear these settings, check this box and click "Update Settings".', 'gfeloqua' )
 					)
 				)
 			);
@@ -596,6 +603,33 @@ class GFEloqua extends GFFeedAddOn {
 			array(
 				'title'  => $title,
 				'fields' => $fields
+			),
+			array(
+				'title' => __( 'Disconnect Notification', 'gfeloqua' ),
+				'description' => __( 'If your site ever loses connection with Eloqua for any reason, this alert will notify you when Eloqua cannot be reached, allowing you to correct the issue as quickly as possible.', 'gfeloqua' ),
+				'fields' => array(
+					array(
+						'type' => 'checkbox',
+						'name' => 'gfeloqua_enable_disconnect_alert',
+						'label' => __( 'Enable', 'gfeloqua' ),
+						'tooltip' => __( 'When enabled, you will be notified by email when your connection to Eloqua is lost', 'gfeloqua' ),
+						'horizontal' => true,
+						'choices' => array(
+							array(
+								'name' => 'enable_disconnect_alert',
+								'label' => __( 'Enable Disconnect Notification', 'gfeloqua' )
+							)
+						)
+					),
+					array(
+						'name'    => 'disconnect_alert_email',
+						'tooltip' => __( 'Email address to send disconnect alerts', 'gfeloqua' ),
+						'label'   => __( 'Email Address', 'gfeloqua' ),
+						'type'    => 'text',
+						'class'   => 'medium',
+						'default_value' => get_bloginfo( 'admin_email' )
+					)
+				) // end fields array
 			)
 		);
 	}
@@ -653,12 +687,10 @@ class GFEloqua extends GFFeedAddOn {
 
 		$name    = esc_attr( $field['name'] );
 		$tooltip = isset( $choice['tooltip'] ) ? gform_tooltip( $choice['tooltip'], rgar( $choice, 'tooltip_class' ), true ) : '';
-		$html    = '';
-
-		$oauth_url = $this->eloqua->get_oauth_url( admin_url( '?page=gf_settings&subview=' . $this->_slug ) );
+		$oauth_url = $this->eloqua->get_oauth_url( $this->get_plugin_settings_url() );
 
 		$html = '<a id="gfeloqua_oauth" data-width="750" data-height="750" class="button" href="' . $oauth_url . '">' . __( 'Authenticate with your Eloqua account', 'gfeloqua' ) . '</a>
-			<span id="' . GFELOQUA_OPT_PREFIX . 'oauth_code" style="display:none;">' . __( 'Paste your code here:', 'gfeloqua' ) . ' <input type="text" name="' . $name .'" value="' . $value . '" style="width:375px;" /></span>';
+			<span id="' . GFELOQUA_OPT_PREFIX . 'oauth_code" style="display:none;">' . __( 'If you have a code, paste it here:', 'gfeloqua' ) . ' <input type="text" name="' . $name .'" value="' . $value . '" style="width:375px;" /></span>';
 
 		if ( $echo )
 			echo $html;
@@ -828,5 +860,35 @@ class GFEloqua extends GFFeedAddOn {
 		}
 
 		$response = $this->eloqua->submit_form( $form_id, $form_submission );
+	}
+
+	function disconnect_notification(){
+		$enabled = $this->get_plugin_setting( 'enable_disconnect_alert' );
+		if( ! $enabled )
+			return;
+
+		$recipient = $this->get_plugin_setting( 'disconnect_alert_email' );
+		if( ! $recipient )
+			return;
+
+		if( ! $this->test_authentication() ){
+			// send email
+			$subject = __( 'Eloqua Disconnected from Gravity Forms', 'gfeloqua' );
+			$headers = array(
+				'From: GFEloqua <' . get_bloginfo( 'admin_email' ) . '>',
+				'Content-Type: text/html; charset=UTF-8'
+			);
+			$settings_page_url = $this->get_plugin_settings_url();
+			$settings_page_link = '<a href="' . $settings_page_url . '">' . $settings_page_url . '</a>';
+			$template = locate_template( array( 'gfeloqua/disconnected-email.php', 'gfeloqua-disconnected-email.php' ) );
+			if( ! $template || ! file_exists( $template ) )
+				$template = GFELOQUA_PATH . 'views/disconnected-email.php';
+
+			ob_start();
+			include( $template );
+			$message = ob_get_clean();
+
+			wp_mail( $recipient, $subject, $message, $headers );
+		}
 	}
 }

@@ -33,6 +33,9 @@ Coming Soon
 Coming Soon
 
 == Upgrade Notice ==
+= 1.2.3 =
+* added feature to alert you if Eloqua is disconnected
+
 = 1.2.2 =
 * added better OAuth setup, no longer needs code copy/paste
 * added better error message when can't connect to Eloqua
