@@ -4,6 +4,10 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ## Changelog
 
+### 1.2.4
+  * fixed a bug keeping you from disabling the notification
+  * added some documentation
+
 ### 1.2.3
   * added feature to alert you if Eloqua is disconnected
 

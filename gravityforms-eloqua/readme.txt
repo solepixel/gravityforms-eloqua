@@ -33,6 +33,10 @@ Coming Soon
 Coming Soon
 
 == Upgrade Notice ==
+= 1.2.4 =
+* fixed a bug keeping you from disabling the notification
+* added some documentation
+
 = 1.2.3 =
 * added feature to alert you if Eloqua is disconnected
 

@@ -28,6 +28,7 @@ class GFEloqua extends GFFeedAddOn {
 	protected $eloqua;
 
 	protected $token_auto_generated = false;
+	protected $oauth_token_retrieved = false;
 
 	public static function get_instance() {
 		if ( self::$_instance == null ) {
@@ -96,6 +97,10 @@ class GFEloqua extends GFFeedAddOn {
 		set_transient( 'gform_update_info', $update_info, DAY_IN_SECONDS );
 	}
 
+	/**
+	 * Settings fields for Eloqua Feed
+	 * @return array  feed settings
+	 */
 	public function feed_settings_fields() {
 		$feed = $this->get_current_feed();
 
@@ -135,6 +140,10 @@ class GFEloqua extends GFFeedAddOn {
 		);
 	}
 
+	/**
+	 * Requirements to enqueue scripts/styles
+	 * @return array enqueue requirements
+	 */
 	function enqueue_conditions(){
 		return array(
 			array( 'query' => 'page=gf_edit_forms&view=settings&subview=' . $this->_slug ),
@@ -142,6 +151,10 @@ class GFEloqua extends GFFeedAddOn {
 		);
 	}
 
+	/**
+	 * Plugin Styles
+	 * @return array  styles
+	 */
 	public function styles() {
 		$styles = array(
 			array(
@@ -161,6 +174,10 @@ class GFEloqua extends GFFeedAddOn {
 		return array_merge( parent::styles(), $styles );
 	}
 
+	/**
+	 * Plugin scripts
+	 * @return array  scripts
+	 */
 	public function scripts() {
 		$scripts = array(
 			array(
@@ -189,6 +206,12 @@ class GFEloqua extends GFFeedAddOn {
 		return array_merge( parent::scripts(), $scripts );
 	}
 
+	/**
+	 * Throw in a few custom items into the feed edit page if the plugin isn't setup yet.
+	 * @param  array $form     GF Form
+	 * @param  int $feed_id    GF Feed ID
+	 * @return void
+	 */
 	public function feed_edit_page( $form, $feed_id ) {
 
 		// ensures valid credentials were entered in the settings page
@@ -204,6 +227,11 @@ class GFEloqua extends GFFeedAddOn {
 		parent::feed_edit_page( $form, $feed_id );
 	}
 
+	/**
+	 * Throw in a few custom items into the feed edit page if the plugin isn't setup yet.
+	 * @param  array $form  GF Form
+	 * @return [type]       [description]
+	 */
 	public function feed_list_page( $form = NULL ){
 		if( ! $this->get_connection_string() ){
 			$settings_page = $this->get_plugin_settings_url();
@@ -215,6 +243,10 @@ class GFEloqua extends GFFeedAddOn {
 		parent::feed_list_page( $form );
 	}
 
+	/**
+	 * Displayed on feed list, custom columns showing Feed Name and Eloqua Form Name
+	 * @return array  list of columns
+	 */
 	public function feed_list_columns() {
 		return array(
 			'feed_name' => __( 'Feed Name', 'gfeloqua' ),
@@ -222,10 +254,20 @@ class GFEloqua extends GFFeedAddOn {
 		);
 	}
 
+	/**
+	 * Display the Feed Name value
+	 * @param  array $feed  GF Feed
+	 * @return string       Feed Name
+	 */
 	public function get_column_value_feed_name( $feed ){
 		return $feed['meta']['feed_name'];
 	}
 
+	/**
+	 * Display the Eloqua Form Name
+	 * @param  array $feed  GF Feed
+	 * @return string       Eloqua Form Name
+	 */
 	public function get_column_value_gfeloqua_form( $feed ){
 		$form_name = '';
 		$form = $this->eloqua->get_form( $feed['meta']['gfeloqua_form'] );
@@ -238,6 +280,11 @@ class GFEloqua extends GFFeedAddOn {
 		return $form_name;
 	}
 
+	/**
+	 * If we have a valid set of credentials or OAuth token, test it
+	 * @param  string $authstring Pass in the authstring directly
+	 * @return bool               Did testing connect successfully?
+	 */
 	public function test_authentication( $authstring = NULL ){
 		if( $authstring ){
 			$connection_string = $authstring;
@@ -254,7 +301,6 @@ class GFEloqua extends GFFeedAddOn {
 			$use_basic = get_option( GFELOQUA_OPT_PREFIX . 'auth_basic' );
 			$use_oauth = (bool) get_option( GFELOQUA_OPT_PREFIX . 'use_oauth', ! $use_basic );
 		}
-
 
 		$test = new Eloqua_API( $connection_string, $use_oauth );
 
@@ -328,6 +374,10 @@ class GFEloqua extends GFFeedAddOn {
 		return true;
 	}
 
+	/**
+	 * The OAuth API will send back the oauth code. This will retrieve it, store it and prepare the page for a window close
+	 * @return void
+	 */
 	function handle_oauth_code(){
 		if( ! isset( $_GET['gfeloqua-oauth-code'] ) )
 			return;
@@ -341,12 +391,20 @@ class GFEloqua extends GFFeedAddOn {
 			return;
 
 		if( $this->generate_oauth_token( $oauth_code ) ){
+			// make a note we generated the token successfully.
 			$this->token_auto_generated = true;
 		}
+
+		// set the flag to close the window
+		$this->oauth_token_retrieved = true;
 	}
 
+	/**
+	 * If we grabbed the OAuth token, try to automatically close the window
+	 * @return void
+	 */
 	function close_oauth_window(){
-		if( ! $this->token_auto_generated )
+		if( ! $this->oauth_token_retrieved )
 			return;
 
 		echo '<script>window.close();</script>';
@@ -354,6 +412,10 @@ class GFEloqua extends GFFeedAddOn {
 		exit();
 	}
 
+	/**
+	 * Get whichever connection string is stored for use
+	 * @return string  authstring or oauth token
+	 */
 	function get_connection_string(){
 		$use_basic = get_option( GFELOQUA_OPT_PREFIX . 'auth_basic' );
 		$use_oauth = (bool) get_option( GFELOQUA_OPT_PREFIX . 'use_oauth', ! $use_basic );
@@ -363,6 +425,10 @@ class GFEloqua extends GFFeedAddOn {
 		return $connection_string;
 	}
 
+	/**
+	 * Detect if the user is switching authentication methods
+	 * @return boolean  is_switch
+	 */
 	public function is_switch(){
 		$is_switch = false;
 		if( $this->is_save_postback() ) {
@@ -378,6 +444,10 @@ class GFEloqua extends GFFeedAddOn {
 		return $is_switch;
 	}
 
+	/**
+	 * Detect if the user is switching disconnecting from Eloqua
+	 * @return boolean  is_disconnect
+	 */
 	public function is_disconnect(){
 		$is_disconnect = false;
 
@@ -389,11 +459,31 @@ class GFEloqua extends GFFeedAddOn {
 		return $is_disconnect;
 	}
 
+	/**
+	 * Detect if the user tried to setup the authentication credentials
+	 * @return boolean  tried
+	 */
+	public function tried_to_setup(){
+		$tried = false;
+
+		if( $this->is_save_postback() ) {
+			$posted = $this->get_posted_settings();
+			$tried = isset( $posted['sitename'] ) && isset( $posted['username'] ) && isset( $posted['password'] ) &&
+				$posted['sitename'] && $posted['username'] && $posted['password'];
+		}
+
+		return $tried;
+	}
+
+	/**
+	 * We need to override the default validate_settings method for cases when they are disconnecting, switching auth methods or their credentials are not valid.
+	 * Be sure to call parent::validate_settings() at the end.
+	 */
 	public function validate_settings( $fields, $settings ){
 		if( $this->is_switch() || $this->is_disconnect() )
 			return true;
 
-		if( ! $this->get_connection_string() )
+		if( ! $this->get_connection_string() && $this->tried_to_setup() )
 			return false;
 
 		if( $this->get_connection_string() && ! $this->test_authentication() )
@@ -402,23 +492,30 @@ class GFEloqua extends GFFeedAddOn {
 		return parent::validate_settings( $fields, $settings );
 	}
 
+	/**
+	 * We need to override the default get_save_error_message method for cases when they are disconnecting, switching auth methods or their credentials are not valid.
+	 * Be sure to call parent::get_save_error_message() at the end.
+	 */
 	public function get_save_error_message( $sections ){
-		if( ! $this->get_connection_string() )
-			return __( 'Unable to connect to Eloqua. Invalid authentication credentials. (Invalid Connection String)', 'gfeloqua' );
-
-		if( $this->get_connection_string() && ! $this->test_authentication() )
-			return __( 'Unable to connect to Eloqua. Invalid authentication credentials.', 'gfeloqua' );
-
 		if( $this->is_switch() )
 			return __( 'Switched authentication method.', 'gfeloqua' );
 
 		if( $this->is_disconnect() )
 			return __( 'Your connection settings have been removed.', 'gfeloqua' );
 
+		if( ! $this->get_connection_string() && $this->tried_to_setup() )
+			return __( 'Unable to connect to Eloqua. Invalid authentication credentials. (Invalid Connection String)', 'gfeloqua' );
+
+		if( $this->get_connection_string() && ! $this->test_authentication() )
+			return __( 'Unable to connect to Eloqua. Invalid authentication credentials.', 'gfeloqua' );
+
 		return parent::get_save_error_message( $sections );
 	}
 
-
+	/**
+	 * We need to override the default get_save_success_message method for cases when they are disconnecting or switching auth methods.
+	 * Be sure to call parent::get_save_success_message() at the end.
+	 */
 	public function get_save_success_message( $sections ){
 		if( $this->is_switch() )
 			return __( 'Switched authentication method.', 'gfeloqua' );
@@ -429,6 +526,12 @@ class GFEloqua extends GFFeedAddOn {
 		return parent::get_save_success_message( $sections );
 	}
 
+	/**
+	 * Display a select list of Eloqua Forms pulled from the API
+	 * @param  array  $field  the form field
+	 * @param  boolean $echo  if the field should be echo'd
+	 * @return array  $field
+	 */
 	public function settings_eloqua_forms( $field, $echo = true ){
 		$forms = array(
 			array(
@@ -462,6 +565,12 @@ class GFEloqua extends GFFeedAddOn {
 		return $html;
 	}
 
+	/**
+	 * The Eloqua fields to be mapped to Gravity Forms fields
+	 * @param  array  $field  the form field
+	 * @param  boolean $echo  if the field should be echo'd
+	 * @return array  $field
+	 */
 	public function settings_list_fields( $field, $echo = true ) {
 
 		$form_id = $this->get_setting( 'gfeloqua_form' );
@@ -494,6 +603,10 @@ class GFEloqua extends GFFeedAddOn {
 
 	}
 
+	/**
+	 * Ajax method used to clear a specified transient
+	 * @return void
+	 */
 	public function clear_eloqua_transient(){
 		$transient = isset( $_GET['transient'] ) ? sanitize_text_field( $_GET['transient'] ) : false;
 		if( $transient )
@@ -502,6 +615,10 @@ class GFEloqua extends GFFeedAddOn {
 		wp_send_json( array( 'success' => true ) );
 	}
 
+	/**
+	 * Main Settings Field for this plugin
+	 * @return array $settings
+	 */
 	public function plugin_settings_fields() {
 
 		$this->_maybe_store_settings();
@@ -634,10 +751,18 @@ class GFEloqua extends GFFeedAddOn {
 		);
 	}
 
+	/**
+	 * Retrieve the oauth token from settings
+	 * @return string oauth_token
+	 */
 	function get_oauth_token(){
 		return get_option( GFELOQUA_OPT_PREFIX . 'oauth_token' );
 	}
 
+	/**
+	 * Retrieve the authstring from settings or try to generate one
+	 * @return string oauth_token
+	 */
 	function get_authstring(){
 		$authstring = get_option( GFELOQUA_OPT_PREFIX . 'authstring' );
 
@@ -647,6 +772,11 @@ class GFEloqua extends GFFeedAddOn {
 		return $authstring;
 	}
 
+	/**
+	 * Generate and store an auth string either from provided $source_array or from posted values
+	 * @param  array  $source_array Array containing fields to generate authstring
+	 * @return string               authstring
+	 */
 	function generate_authstring( $source_array = array() ){
 		$authstring = '';
 		$posted = array();
@@ -679,6 +809,12 @@ class GFEloqua extends GFFeedAddOn {
 		return $authstring;
 	}
 
+	/**
+	 * Special Gravity Forms Settings Field that allows a user to connect to Eloqua using OAuth
+	 * @param  array  $field  form field
+	 * @param  boolean $echo  if the field shoul be echo'd
+	 * @return string  the field html
+	 */
 	function settings_oauth_link( $field, $echo = true ){
 		$field['type'] = 'oauth_link'; //making sure type is set to text
 		$attributes    = $this->get_field_attributes( $field );
@@ -698,6 +834,10 @@ class GFEloqua extends GFFeedAddOn {
 		return $html;
 	}
 
+	/**
+	 * Used whenever disconnect checkbox value is present
+	 * @return bool  if settings where cleared
+	 */
 	function _maybe_clear_settings(){
 		if( $this->is_save_postback() ) {
 
@@ -715,6 +855,10 @@ class GFEloqua extends GFFeedAddOn {
 		return false;
 	}
 
+	/**
+	 * We don't want to store the authentication credentials in the database, so hijack the values and overwrite the save values without any extra values
+	 * @return void
+	 */
 	function _maybe_store_settings(){
 		$settings = $this->get_plugin_settings();
 
@@ -735,6 +879,12 @@ class GFEloqua extends GFFeedAddOn {
 
 		// make sure this doesn't get stored.
 		unset( $settings['eloqua_disconnect'] );
+
+		// unset checkboxes
+		if( ! isset( $settings['enable_disconnect_alert'] ) ){
+			$settings['enable_disconnect_alert'] = '';
+		}
+
 		$this->update_plugin_settings( $settings );
 
 		if( $this->is_save_postback() ) {
@@ -759,7 +909,12 @@ class GFEloqua extends GFFeedAddOn {
 		}
 	}
 
-	public function generate_oauth_token( $code = false ){
+	/**
+	 * When we have an OAuth code, we need to generate the token immediately
+	 * @param  string $code  OAuth code
+	 * @return mixed  $token or false
+	 */
+	public function generate_oauth_token( $code = '' ){
 		if( $this->is_save_postback() ){
 			$param = GFELOQUA_OPT_PREFIX . 'oauth_code';
 			$code = isset( $_POST[ $param ] ) ? sanitize_text_field( $_POST[ $param ] ) : '';
@@ -831,6 +986,13 @@ class GFEloqua extends GFFeedAddOn {
 		return false;
 	}
 
+	/**
+	 * Send the form data over to Eloqua with the matched field data
+	 * @param  array $feed   GF Feed Array
+	 * @param  array $entry  Posted Entry Data
+	 * @param  array $form   GF Form Array
+	 * @return void
+	 */
 	public function process_feed( $feed, $entry, $form ){
 		$form_id = $feed['meta']['gfeloqua_form'];
 
@@ -862,6 +1024,10 @@ class GFEloqua extends GFFeedAddOn {
 		$response = $this->eloqua->submit_form( $form_id, $form_submission );
 	}
 
+	/**
+	 * Send an email when Eloqua is disconnected
+	 * @return void
+	 */
 	function disconnect_notification(){
 		$enabled = $this->get_plugin_setting( 'enable_disconnect_alert' );
 		if( ! $enabled )
