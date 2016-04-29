@@ -44,3 +44,5 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ### 1.0
   * Launched plugin
+
+Eloqua Developer Documentation is here: http://docs.oracle.com/cloud/latest/marketingcs_gs/OMCAB/index.html
