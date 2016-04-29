@@ -185,8 +185,17 @@ class Eloqua_API {
 		delete_transient( 'gfeloqua/' . $transient );
 	}
 
-	public function get_forms(){
+	public function get_forms( $page = NULL, $count = 1000 ){
 		$call = 'assets/forms';
+
+		if( $count || $page ){
+			$qs = '';
+			if( $count )
+				$qs .= 'count=' . $count;
+			if( $page )
+				$qs .= $qs ? '&page=' . $page : 'page=' . $page;
+			$call .= '?' . $qs;
+		}
 
 		if( $transient = $this->get_transient( $call ) )
 			return $transient;
@@ -194,8 +203,20 @@ class Eloqua_API {
 		$forms = $this->_call( $call );
 
 		if( $this->is_valid_data( $forms ) ){
-			$this->set_transient( $call, $forms->elements );
-			return $forms->elements;
+			$all_forms = $forms->elements;
+
+			if( count( $all_forms ) >= $count ){
+				$page = $page ? $page + 1 : 2;
+				$the_rest = $this->get_forms( $page, $count );
+				if( is_array( $the_rest ) ){
+					$all_forms = array_merge( $all_forms, $the_rest );
+				}
+			}
+
+			usort( $all_forms, array( $this, 'compare_by_folder' ) );
+
+			$this->set_transient( $call, $all_forms );
+			return $all_forms;
 		}
 
 		return array();
@@ -223,6 +244,20 @@ class Eloqua_API {
 		}
 
 		return array();
+	}
+
+	public function get_form_folder_name( $folder_id ){
+		$call = 'assets/folder/' . $folder_id;
+
+		if( $transient = $this->get_transient( $call ) )
+			return $transient;
+
+		$folder = $this->_call( $call );
+
+		if( $folder ){
+			$this->set_transient( $call, $folder );
+			return $folder;
+		}
 	}
 
 	public function submit_form( $form_id, $submission ){
@@ -256,5 +291,11 @@ class Eloqua_API {
 		}
 
 		return false;
+	}
+
+	public function compare_by_folder( $a, $b ){
+		$folderA = isset( $a->folderId ) && $a->folderId ? $a->folderId : '';
+		$folderB = isset( $b->folderId ) && $b->folderId ? $b->folderId : '';
+		return strcmp( $folderA, $folderB );
 	}
 }

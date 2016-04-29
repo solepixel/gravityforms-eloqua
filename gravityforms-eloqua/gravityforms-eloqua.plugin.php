@@ -3,12 +3,12 @@
  * Plugin Name: Gravity Forms Eloqua
  * Plugin URI: http://www.briandichiara.com
  * Description: Integrate Eloqua into Gravity Forms
- * Version: 1.2.4
+ * Version: 1.3.0
  * Author: Brian DiChiara
  * Author URI: http://www.briandichiara.com
  */
 
-define( 'GFELOQUA_VERSION', '1.2.4' );
+define( 'GFELOQUA_VERSION', '1.3.0' );
 define( 'GFELOQUA_OPT_PREFIX', 'gfeloqua_' );
 define( 'GFELOQUA_PATH', plugin_dir_path( __FILE__ ) );
 define( 'GFELOQUA_DIR', plugin_dir_url( __FILE__ ) );

@@ -30,6 +30,8 @@ class GFEloqua extends GFFeedAddOn {
 	protected $token_auto_generated = false;
 	protected $oauth_token_retrieved = false;
 
+	private $folders = array();
+
 	public static function get_instance() {
 		if ( self::$_instance == null ) {
 			self::$_instance = new GFEloqua();
@@ -62,6 +64,9 @@ class GFEloqua extends GFFeedAddOn {
 		// oauth actions
 		add_action( 'admin_init', array( $this, 'handle_oauth_code' ) );
 		add_action( 'admin_head', array( $this, 'close_oauth_window' ) );
+
+		// Disconnect Notice
+		add_action( 'admin_notices', array( $this, 'disconnect_notice' ) );
 
 		// cron actions
 		add_action( 'gfeloqua_disconnect_notification', array( $this, 'disconnect_notification' ) );
@@ -544,10 +549,10 @@ class GFEloqua extends GFFeedAddOn {
 			$eloqua_forms = $this->eloqua->get_forms();
 			if( count( $eloqua_forms ) ){
 				foreach( $eloqua_forms as $form ){
-					$forms[] = array(
-						'label' => $form->name . ' (' . $form->currentStatus . ')',
-						'value' => $form->id
-					);
+					$this->setup_folders( $form );
+				}
+				foreach( $eloqua_forms as $form ){
+					$this->add_form_to_array( $form, $forms );
 				}
 			} else {
 				$forms[0]['label'] = __( 'No Eloqua Forms were found.', 'gfeloqua' );
@@ -563,6 +568,40 @@ class GFEloqua extends GFFeedAddOn {
 			echo $html;
 
 		return $html;
+	}
+
+	public function setup_folders( $form ){
+		if( ! isset( $form->folderId ) || ! $form->folderId )
+			return;
+
+		if( isset( $this->folders[ $form->folderId ] ) )
+			return;
+
+		$folder = $this->eloqua->get_form_folder_name( $form->folderId );
+		$this->folders[ $form->folderId ] = $folder->name;
+	}
+
+	public function add_form_to_array( $form, &$array ){
+		if( strtolower( $form->type ) != 'form' )
+			return;
+
+		if( isset( $form->folderId ) && $form->folderId ){
+			$choices = isset( $array[ '_folder' . $form->folderId ]['choices'] ) ? $array[ '_folder' . $form->folderId ]['choices'] : array();
+			$choices[ '_form' . $form->id ] = array(
+				'label' => $form->name . ' (' . $form->currentStatus . ')',
+				'value' => $form->id
+			);
+
+			$array[ '_folder' . $form->folderId ] = array(
+				'label' => $this->folders[ $form->folderId ],
+				'choices' => $choices
+			);
+		} elseif( ! isset( $array[ '_form' . $form->id ] ) ) {
+			$array[ '_form' . $form->id ] = array(
+				'label' => $form->name . ' (' . $form->currentStatus . ')',
+				'value' => $form->id
+			);
+		}
 	}
 
 	/**
@@ -727,14 +766,27 @@ class GFEloqua extends GFFeedAddOn {
 				'fields' => array(
 					array(
 						'type' => 'checkbox',
+						'name' => 'gfeloqua_enable_disconnect_notice',
+						'label' => __( 'Admin Notice', 'gfeloqua' ),
+						'tooltip' => __( 'When enabled, you will see an admin notice in the WordPress Dashboard when your connection to Eloqua is lost', 'gfeloqua' ),
+						'horizontal' => true,
+						'choices' => array(
+							array(
+								'name' => 'enable_disconnect_notice',
+								'label' => __( 'Enable Disconnect Admin Notice', 'gfeloqua' )
+							)
+						)
+					),
+					array(
+						'type' => 'checkbox',
 						'name' => 'gfeloqua_enable_disconnect_alert',
-						'label' => __( 'Enable', 'gfeloqua' ),
+						'label' => __( 'Email Alert', 'gfeloqua' ),
 						'tooltip' => __( 'When enabled, you will be notified by email when your connection to Eloqua is lost', 'gfeloqua' ),
 						'horizontal' => true,
 						'choices' => array(
 							array(
 								'name' => 'enable_disconnect_alert',
-								'label' => __( 'Enable Disconnect Notification', 'gfeloqua' )
+								'label' => __( 'Enable Disconnect Notification Email', 'gfeloqua' )
 							)
 						)
 					),
@@ -884,6 +936,9 @@ class GFEloqua extends GFFeedAddOn {
 		if( ! isset( $settings['enable_disconnect_alert'] ) ){
 			$settings['enable_disconnect_alert'] = '';
 		}
+		if( ! isset( $settings['enable_disconnect_notice'] ) ){
+			$settings['enable_disconnect_notice'] = '';
+		}
 
 		$this->update_plugin_settings( $settings );
 
@@ -1007,7 +1062,7 @@ class GFEloqua extends GFFeedAddOn {
 		foreach( $feed['meta'] as $key => $gf_field_id ){
 
 			if( strpos( $key, 'mapped_fields_' ) !== false ){
-				if( ! isset( $entry[ $gf_field_id ]) )
+				if( ! isset( $entry[ $gf_field_id ] ) && ! isset( $entry[ $gf_field_id . '.1' ] ) )
 					continue;
 
 				$key = str_replace( 'mapped_fields_', '', $key );
@@ -1015,7 +1070,16 @@ class GFEloqua extends GFFeedAddOn {
 				$field_value = new stdClass();
 				$field_value->id = (int) $key;
 				$field_value->type = 'FieldValue';
-				$field_value->value = $entry[ $gf_field_id ];
+				if( isset( $entry[ $gf_field_id . '.1' ] ) ){
+					$field_value->value = '';
+					foreach( $entry as $entry_key => $value ){
+						if( strpos( $entry_key, $gf_field_id . '.' ) !== false && $value ){
+							$field_value->value .= $field_value->value ? ',' . $value : $value;
+						}
+					}
+				} else {
+					$field_value->value = $entry[ $gf_field_id ];
+				}
 
 				$form_submission->fieldValues[] = $field_value;
 			}
@@ -1055,6 +1119,24 @@ class GFEloqua extends GFFeedAddOn {
 			$message = ob_get_clean();
 
 			wp_mail( $recipient, $subject, $message, $headers );
+		}
+	}
+
+	/**
+	 * Display an Admin Alert when Eloqua is Disconnected
+	 * @return void
+	 */
+	function disconnect_notice(){
+		$enabled = $this->get_plugin_setting( 'enable_disconnect_notice' );
+		if( ! $enabled )
+			return;
+
+		if( ! $this->test_authentication() ){
+			$settings_page_url = $this->get_plugin_settings_url();
+
+			echo '<div class="notice notice-error is-dismissible">
+		        <p>' . sprintf( __( 'It seems as though Gravity Forms has lost connection to your Eloqua account. <a href="%">Click here to re-connect.</a>', 'gfeloqua' ), $settings_page_url ) . '</p>
+		    </div>';
 		}
 	}
 }
