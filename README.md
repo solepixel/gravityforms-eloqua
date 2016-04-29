@@ -4,6 +4,14 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ## Changelog
 
+### 1.3.0
+  * Fixed bug where only 1000 records are displayed. (needs testing)
+  * Fixed bug where multi-checkbox values are not being stored.
+  * Added feature to show Forms grouped by folder name
+  * Added ability to specify count and page parameters to get_forms() method
+  * Added Admin Notice when Eloqua is disconnected
+  * A few minor tweaks
+
 ### 1.2.4
   * fixed a bug keeping you from disabling the notification
   * added some documentation
