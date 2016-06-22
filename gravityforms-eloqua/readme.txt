@@ -26,6 +26,8 @@ Integrate your Gravity Forms forms so that when users submit a form entry, the e
 1. If the settings are correct, it will say so.
 1. Follow on-screen instructions for integrating with Eloqua.
 
+For Automatic Updates, install the GitHub-Updater plugin: https://github.com/afragen/github-updater
+
 == Frequently Asked Questions ==
 Nobody has asked any questions frequently.
 
@@ -35,7 +37,7 @@ No screenshots at this time.
 == Upgrade Notice ==
 = 1.3.1 =
 * Fixed PHP Notice when inserting version data throws notice about non-object
-* Added GitHub Updater plugin support
+* Added GitHub Updater plugin support (More Info: https://github.com/afragen/github-updater)
 * Added filter `gfeloqua_validate_response` to validate_response in GFEloqua API Class
 * Added entry note/error logging and display in admin
 * Updated select2 to version 4.0.3

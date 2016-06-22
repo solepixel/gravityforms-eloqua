@@ -4,6 +4,13 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ## Changelog
 
+### 1.3.1
+  * Fixed PHP Notice when inserting version data throws notice about non-object
+  * Added GitHub Updater plugin support (More Info: https://github.com/afragen/github-updater)
+  * Added filter `gfeloqua_validate_response` to validate_response in GFEloqua API Class
+  * Added entry note/error logging and display in admin
+  * Updated select2 to version 4.0.3
+
 ### 1.3.0
   * Fixed bug where only 1000 records are displayed. (needs testing)
   * Fixed bug where multi-checkbox values are not being stored.
