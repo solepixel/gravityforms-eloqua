@@ -10,30 +10,36 @@ class Eloqua_API {
 
 	const ELOQUA_IS_REQUIRED = 'IsRequiredCondition';
 
-	var $urls;
+	public $urls;
 
-	var $connection;
-	var $connection_args = array();
+	public $connection;
+	public $connection_args = array();
 
-	var $authstring;
-	var $use_oauth = false;
+	public $authstring;
+	public $use_oauth = false;
 
-	var $basic_auth_url = 'https://login.eloqua.com/id';
-	var $rest_api_version = '2.0';
+	public $basic_auth_url = 'https://login.eloqua.com/id';
+	public $rest_api_version = '2.0';
 
-	var $_oauth_authorize_url = 'https://login.eloqua.com/auth/oauth2/authorize';
-	var $_oauth_token_url = 'https://login.eloqua.com/auth/oauth2/token';
+	public $_oauth_authorize_url = 'https://login.eloqua.com/auth/oauth2/authorize';
+	public $_oauth_token_url = 'https://login.eloqua.com/auth/oauth2/token';
 
-	var $_oauth_client_id = '11c8590a-f513-496a-aa9c-4a224dd92861';
-	var $_oauth_client_secret = '15325mypy7U2JFaTg35mF8ekItAyOdiOwfsZBx2dbHEECNecqSy9KK5ammgNlEhMwhhEav1te0hP8hdmQ1KaZjY1z9yQLlaGkQgP';
-	var $_oauth_redirect_uri = 'https://api.briandichiara.com/gravityformseloqua/';
-	var $_oauth_scope = 'full';
+	public $_oauth_client_id = '11c8590a-f513-496a-aa9c-4a224dd92861';
+	public $_oauth_client_secret = '15325mypy7U2JFaTg35mF8ekItAyOdiOwfsZBx2dbHEECNecqSy9KK5ammgNlEhMwhhEav1te0hP8hdmQ1KaZjY1z9yQLlaGkQgP';
+	public $_oauth_redirect_uri = 'https://api.briandichiara.com/gravityformseloqua/';
+	public $_oauth_scope = 'full';
+
+	public $errors = array();
 
 	function __construct( $authstring = '', $use_oauth = false ){
 		if( $authstring )
 			$this->authstring = $authstring;
 
 		$this->use_oauth = $use_oauth;
+	}
+
+	public function get_errors(){
+		return $this->errors;
 	}
 
 	function get_oauth_url( $source = false ){
@@ -93,7 +99,7 @@ class Eloqua_API {
 		$response = $this->connection->request( $this->get_auth_url(), $this->connection_args );
 
 		if( is_wp_error( $response ) ){
-			echo $response->get_error_message();
+			$this->errors[] = 'WP_Http Error: ' . $response->get_error_message();
 			return false;
 		}
 
@@ -138,29 +144,36 @@ class Eloqua_API {
 
 		$response = $this->connection->request( $url, $args );
 
-		if( ! $data = $this->validate_response( $response ) )
+		if( ! $data = $this->validate_response( $response ) ){
+			if( is_string( $response ) ){
+				$this->errors[] = $response;
+			} else {
+				$this->errors[] = 'Response Validation Failed.';
+			}
+
 			return false;
+		}
 
 		return $data;
 	}
 
 	public function validate_response( $response ){
-		if( ! $response || ! is_array( $response ) )
-			return false;
+		$return = false;
 
-		if( ! isset( $response['response'] ) || ! isset( $response['response']['code'] ) )
-			return false;
+		if( $response && is_array( $response ) ){
 
-		if( $response['response']['code'] == '200' && $response['body'] )
-			return json_decode( $response['body'] );
+			if( isset( $response['response'] ) && isset( $response['response']['code'] ) ){
 
-		if( $response['response']['code'] == '201' && $response['body'] )
-			return json_decode( $response['body'] );
+				// 201 = "Created"
+				if( in_array( $response['response']['code'], array( '200', '201', '202' ) ) && $response['body'] ){
+					$return = json_decode( $response['body'] );
+				}
 
-		if( $response['response']['code'] == '202' && $response['body'] )
-			return json_decode( $response['body'] );
+			}
 
-		return false;
+		}
+
+		return apply_filters( 'gfeloqua_validate_response', $return, $response );
 	}
 
 	public function is_valid_data( $data ){
@@ -263,6 +276,7 @@ class Eloqua_API {
 	public function submit_form( $form_id, $submission ){
 		$response = $this->_call( 'data/form/' . $form_id, $submission, 'POST' );
 
+		// on Success, Eloqua returns the submission data
 		if( $response )
 			return true;
 		else

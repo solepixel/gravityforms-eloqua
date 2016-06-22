@@ -72,6 +72,9 @@ class GFEloqua extends GFFeedAddOn {
 		add_action( 'gfeloqua_disconnect_notification', array( $this, 'disconnect_notification' ) );
 		if( ! wp_next_scheduled( 'gfeloqua_disconnect_notification' ) )
 			wp_schedule_event( time(), 'hourly', 'gfeloqua_disconnect_notification' );
+
+		// entry detail
+		add_action( 'gform_entry_detail', array( $this, 'entry_notes' ), 10, 2 );
 	}
 
 	/**
@@ -95,7 +98,11 @@ class GFEloqua extends GFFeedAddOn {
 		$gfeloqua->version = $this->_version;
 		$gfeloqua->url = $this->_url;
 
-		$body->offerings->{$this->_slug} = $gfeloqua;
+		if( is_array( $body->offerings ) ){
+			$body->offerings[ $this->_slug ] = $gfeloqua;
+		} else {
+			$body->offerings->{$this->_slug} = $gfeloqua;
+		}
 
 		$update_info['body'] = json_encode( $body );
 
@@ -1086,6 +1093,22 @@ class GFEloqua extends GFFeedAddOn {
 		}
 
 		$response = $this->eloqua->submit_form( $form_id, $form_submission );
+
+		if( ! $response ){
+
+			$errors = $this->eloqua->get_errors();
+
+			if( ! $errors )
+				$errors = array( __( 'Unknown error sending data to Eloqua.', 'gfeloqua' ) );
+
+			$this->log_entry_notes( $entry['id'], $errors, $form['id'] );
+
+			//do_action( 'log_debug', $last_error, $entry );
+
+		} else {
+			$this->log_entry_notes( $entry['id'], array( 'Data successfully sent to Eloqua!' ), $form['id'] );
+		}
+
 	}
 
 	/**
@@ -1137,6 +1160,58 @@ class GFEloqua extends GFFeedAddOn {
 			echo '<div class="notice notice-error is-dismissible">
 		        <p>' . sprintf( __( 'It seems as though Gravity Forms has lost connection to your Eloqua account. <a href="%">Click here to re-connect.</a>', 'gfeloqua' ), $settings_page_url ) . '</p>
 		    </div>';
+		}
+	}
+
+	/**
+	 * Log GFEloqua Notes in Entry Meta
+	 * @param  int $entry_id   Entry ID
+	 * @param  mixed $new_notes String/Array of Note(s)/Message(s)
+	 * @param  int $form_id    GF Form ID
+	 * @return void
+	 */
+	function log_entry_notes( $entry_id, $new_notes, $form_id = NULL ){
+		$notes = $this->get_entry_notes( $entry_id );
+		if( ! $notes )
+			$notes = array();
+
+		if( $new_notes && is_string( $new_notes ) ){
+			$new_notes = array( $new_notes );
+		}
+
+		$notes = array_merge( $notes, $new_notes );
+
+		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'notes', $notes, $form_id );
+	}
+
+	/**
+	 * Grab GFEloqua Notes from Entry Meta
+	 * @param  int $entry_id Entry ID
+	 * @return array Notes
+	 */
+	function get_entry_notes( $entry_id ){
+		$notes = gform_get_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'notes' );
+		if( $notes )
+			return $notes;
+
+		return array();
+	}
+
+	/**
+	 * Display Notes from Submission to Eloqua
+	 * @param  object $form  Gravity Object
+	 * @param  object $entry Entry Object
+	 * @return void
+	 */
+	function entry_notes( $form, $entry ){
+		if( is_admin() ){
+			$notes = $this->get_entry_notes( $entry['id'] );
+
+			if( ! $notes )
+				return;
+
+			$view = GFELOQUA_PATH . '/views/entry-notes.php';
+			include( $view );
 		}
 	}
 }
