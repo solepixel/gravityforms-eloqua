@@ -35,6 +35,9 @@ Nobody has asked any questions frequently.
 No screenshots at this time.
 
 == Upgrade Notice ==
+= 1.3.2 =
+* Fixed bug where form list from Eloqua wouldn't refresh with latest forms
+
 = 1.3.1 =
 * Fixed PHP Notice when inserting version data throws notice about non-object
 * Added GitHub Updater plugin support (More Info: https://github.com/afragen/github-updater)

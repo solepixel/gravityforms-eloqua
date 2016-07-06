@@ -201,19 +201,21 @@ class Eloqua_API {
 	public function get_forms( $page = NULL, $count = 1000 ){
 		$call = 'assets/forms';
 
+		if( $transient = $this->get_transient( $call ) )
+			return $transient;
+
+		$actual_call = $call;
+
 		if( $count || $page ){
 			$qs = '';
 			if( $count )
 				$qs .= 'count=' . $count;
 			if( $page )
 				$qs .= $qs ? '&page=' . $page : 'page=' . $page;
-			$call .= '?' . $qs;
+			$actual_call .= '?' . $qs;
 		}
 
-		if( $transient = $this->get_transient( $call ) )
-			return $transient;
-
-		$forms = $this->_call( $call );
+		$forms = $this->_call( $actual_call );
 
 		if( $this->is_valid_data( $forms ) ){
 			$all_forms = $forms->elements;
@@ -229,6 +231,7 @@ class Eloqua_API {
 			usort( $all_forms, array( $this, 'compare_by_folder' ) );
 
 			$this->set_transient( $call, $all_forms );
+
 			return $all_forms;
 		}
 
