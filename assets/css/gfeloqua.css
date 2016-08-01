@@ -18,6 +18,10 @@ table.gforms_form_settings .settings-field-map-table th {
 	padding-left:0;
 }
 
-.gfeloqua-retry {
+.gfeloqua-failed {
 	float:right;
+}
+.gfeloqua-failed strong {
+	display: inline-block;
+	margin-right:10px;
 }

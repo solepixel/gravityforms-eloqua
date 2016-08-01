@@ -32,6 +32,10 @@ class GFEloqua extends GFFeedAddOn {
 
 	private $folders = array();
 
+	private $init_counter = 0;
+	private $text_for_success = 'Success!';
+	private $text_for_failed = 'Failed.';
+
 	public static function get_instance() {
 		if ( self::$_instance == null ) {
 			self::$_instance = new GFEloqua();
@@ -70,9 +74,15 @@ class GFEloqua extends GFFeedAddOn {
 		add_action( 'admin_notices', array( $this, 'disconnect_notice' ) );
 
 		// cron actions
+		add_filter( 'cron_schedules', array( $this, 'add_5min_cron_schedule' ) );
+
 		add_action( 'gfeloqua_disconnect_notification', array( $this, 'disconnect_notification' ) );
 		if( ! wp_next_scheduled( 'gfeloqua_disconnect_notification' ) )
 			wp_schedule_event( time(), 'hourly', 'gfeloqua_disconnect_notification' );
+
+		add_action( 'gfeloqua_process_failed_submissions', array( $this, 'retry_failed_submissions' ) );
+		if( ! wp_next_scheduled( 'gfeloqua_process_failed_submissions' ) )
+			wp_schedule_event( time(), '5min', 'gfeloqua_process_failed_submissions' );
 
 		// entry detail
 		add_action( 'gform_entry_detail', array( $this, 'entry_notes' ), 10, 2 );
@@ -1107,18 +1117,20 @@ class GFEloqua extends GFFeedAddOn {
 				$errors = array( __( 'Unknown error sending data to Eloqua. <a href="#gfeloqua-note-detail" class="toggle-note-detail">See Debug Info</a><div class="gfeloqua-note-detail" style="display:none;">RESPONSE: <pre>' . print_r( $this->eloqua->last_response, true ) . '</pre></div>', 'gfeloqua' ) );
 
 			$this->log_entry_notes( $entry['id'], $errors, $form['id'] );
-			gform_update_meta( $entry['id'], GFELOQUA_OPT_PREFIX . 'success', 'Failed.', $form['id'] );
+			gform_update_meta( $entry['id'], GFELOQUA_OPT_PREFIX . 'success', $this->text_for_failed, $form['id'] );
 
 			//do_action( 'log_debug', $last_error, $entry );
 
+			return false;
 		} else {
 			$this->mark_as_sent( $entry['id'], $form['id'] );
+			return true;
 		}
 
 	}
 
 	function mark_as_sent( $entry_id, $form_id = NULL ){
-		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'success', 'Success!', $form_id );
+		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'success', $this->text_for_success, $form_id );
 	}
 
 	/**
@@ -1231,6 +1243,7 @@ class GFEloqua extends GFFeedAddOn {
 				return;
 
 			$success = $this->is_successful_submission( $entry['id'], $notes );
+			$retry_attempts = $this->get_retry_attempts( $entry['id'] );
 
 			// override the notes with the success message.
 			if( $success )
@@ -1280,12 +1293,15 @@ class GFEloqua extends GFFeedAddOn {
 	}
 
 	/**
-	 * Ajax Method to retry entry submission
+	 * Method to retry entry submission (used for AJAX and Cron)
 	 * @return json
 	 */
-	function resubmit_entry(){
-		$entry_id = isset( $_GET['entry_id'] ) && $_GET['entry_id'] ? (int) sanitize_text_field( $_GET['entry_id'] ) : false;
-		$form_id = isset( $_GET['form_id'] ) && $_GET['form_id'] ? (int) sanitize_text_field( $_GET['form_id'] ) : false;
+	function resubmit_entry( $entry_id = NULL, $form_id = NULL ){
+		if( ! $entry_id )
+			$entry_id = isset( $_GET['entry_id'] ) && $_GET['entry_id'] ? (int) sanitize_text_field( $_GET['entry_id'] ) : false;
+
+		if( ! $form_id )
+			$form_id = isset( $_GET['form_id'] ) && $_GET['form_id'] ? (int) sanitize_text_field( $_GET['form_id'] ) : false;
 
 		if( ! $entry_id || ! $form_id )
 			return false;
@@ -1300,12 +1316,17 @@ class GFEloqua extends GFFeedAddOn {
 		if( ! $feeds )
 			return false;
 
+		$this->update_retry_attempts( $entry_id, $form_id );
+
 		$feed = $feeds[0];
 		$entry = GFAPI::get_entry( $entry_id );
 		$form = GFAPI::get_form( $form_id );
 
 		// re-attempt to submit the data
-		$this->process_feed( $feed, $entry, $form );
+		$res = $this->process_feed( $feed, $entry, $form );
+
+		if( ! defined( 'DOING_AJAX' ) || ! DOING_AJAX )
+			return $res;
 
 		// grab a new copy of the notes
 		$notes = $this->get_entry_notes( $entry_id );
@@ -1323,13 +1344,134 @@ class GFEloqua extends GFFeedAddOn {
 		exit();
 	}
 
+	function get_retry_attempts( $entry_id ){
+		return gform_get_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'retries' );
+	}
+
+	function update_retry_attempts( $entry_id, $form_id = NULL ){
+		$attempts = $this->get_retry_attempts( $entry_id );
+		if( ! $attempts )
+			$attempts = 0;
+		$attempts++;
+		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'retries', $attempts, $form_id );
+	}
+
 	function add_success_meta( $meta, $form_id ){
+		$feeds = GFAPI::get_feeds( NULL, $form_id, $this->_slug );
+
+		if( ! $feeds )
+			return $meta;
+
 		$meta[ GFELOQUA_OPT_PREFIX . 'success'] = array(
 			'label' => __( 'Sent to Eloqua?', 'gfeloqua' ),
 			'is_numeric' => false,
 			'update_entry_meta_callback' => 'update_entry_meta',
 			'is_default_column' => false
 		);
+
 		return $meta;
 	}
+
+	function add_5min_cron_schedule( $schedules ){
+		if( ! isset( $schedules[ '5min' ] ) ){
+			$schedules['5min'] = array(
+				'interval' => 5 * 60,
+				'display' => __( 'Once every 5 minutes', 'gfeloqua' )
+			);
+		}
+
+		return $schedules;
+	}
+
+	/**
+	 * Retry failed entry submissions to Eloqua
+	 * @return void
+	 */
+	function retry_failed_submissions(){
+		$feeds = GFAPI::get_feeds( NULL, NULL, $this->_slug );
+
+		$forms = array();
+		foreach( $feeds as $feed ){
+			if( ! in_array( $feed['form_id'] ) )
+				$forms[] = $feed['form_id'];
+		}
+
+		$entries = $this->get_failed_entries( $forms );
+
+		foreach( $entries as $entry ){
+			$this->resubmit_entry( $entry['id'], $entry['form_id'] );
+		}
+
+	}
+
+	/**
+	 * Grab failed GF Entries
+	 * @param  array  $forms collected forms
+	 * @return array        Entries
+	 */
+	function get_failed_entries( $forms = array() ){
+		return GFAPI::get_entries( $forms, array(
+			'field_filters' => array(
+				'mode' => 'any',
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => 0 ),
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => $this->text_for_failed )
+			)
+		), array(), array( 'page_size' => 50 ) );
+	}
+
+	/**
+	 * Keeping this in here incase I need to use it in the future.
+	 * @return [type] [description]
+	 */
+	function fix_old_entries(){
+		$feeds = GFAPI::get_feeds( NULL, NULL, $this->_slug );
+
+		$forms = array();
+		foreach( $feeds as $feed ){
+			if( ! in_array( $feed['form_id'] ) )
+				$forms[] = $feed['form_id'];
+		}
+
+		$this->init_entries( $forms );
+	}
+
+	function init_entries( $forms, $action = 'fails2success', $offset = 0, $limit = 200 ){
+		if( ! $forms )
+			return;
+
+		if( $action == 'fails2success' ){
+			$init_query = array(
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => $this->text_for_failed )
+			);
+		} elseif( $action == 'init2failed' ) {
+			$init_query = array(
+				'mode' => 'any',
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => NULL, 'operator' => 'isnot' ),
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => '', 'operator' => 'isnot' ),
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'notes', 'value' => NULL, 'operator' => 'isnot' ),
+				array( 'key' => GFELOQUA_OPT_PREFIX . 'notes', 'value' => '', 'operator' => 'isnot' )
+			);
+		} else {
+			return;
+		}
+
+		$batch_entries = GFAPI::get_entries( $forms, $init_query, array(), array( 'offset' => $offset, 'page_size' => $limit ) );
+
+		foreach( $batch_entries as $entry ){
+			if( ! $this->is_successful_submission( $entry['id'] ) ){
+				if( $action == 'fails2success' ){
+					gform_update_meta( $entry['id'], GFELOQUA_OPT_PREFIX . 'success', $this->text_for_success, $entry['form_id'] );
+				} elseif( $action == 'init2failed' ) {
+					gform_update_meta( $entry['id'], GFELOQUA_OPT_PREFIX . 'success', $this->text_for_failed, $entry['form_id'] );
+				}
+				$this->init_counter++;
+			}
+		}
+
+		if( count( $batch_entries ) >= $limit )
+			$this->init_entries( $forms, $action, $offset + $limit, $limit );
+
+		return $this->init_counter;
+	}
+
 }
