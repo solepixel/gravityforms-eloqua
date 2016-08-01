@@ -4,6 +4,9 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ## Changelog
 
+### 1.4.2
+  * Removed Github Access Token
+
 ### 1.4.1
   * Added automatic re-submission of failed entries
   * Added display count to show retry attempts.
