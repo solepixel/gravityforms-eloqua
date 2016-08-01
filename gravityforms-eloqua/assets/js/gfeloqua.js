@@ -114,4 +114,32 @@ jQuery(function($){
 			$(this).parents('form').submit();
 		});
 	}
+
+	$('a.toggle-note-detail').on('click', function(e){
+		e.preventDefault();
+		$(this).next('.gfeloqua-note-detail').slideToggle('fast');
+	});
+
+	$('.gfeloqua-retry').on('click', function(e){
+		e.preventDefault();
+
+		var $btn = $(this),
+			entry_id = $btn.data('entry-id'),
+			form_id = $btn.data('form-id');
+
+		$.ajax({
+			url: gfeloqua_strings.ajax_url,
+			data: {
+				action: 'gfeloqua_resubmit_entry',
+				entry_id : entry_id,
+				form_id : form_id
+			},
+			success: function( response ){
+				if( response.success )
+					$btn.remove();
+
+				$('#gfeloqua-notes').html( response.notes );
+			}
+		});
+	});
 });

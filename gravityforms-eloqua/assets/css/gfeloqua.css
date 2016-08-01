@@ -17,3 +17,7 @@
 table.gforms_form_settings .settings-field-map-table th {
 	padding-left:0;
 }
+
+.gfeloqua-retry {
+	float:right;
+}

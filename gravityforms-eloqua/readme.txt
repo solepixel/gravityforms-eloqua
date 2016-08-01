@@ -35,6 +35,11 @@ Nobody has asked any questions frequently.
 No screenshots at this time.
 
 == Upgrade Notice ==
+= 1.3.3 =
+* Added "Retry Submission" button on failed submissions to Eloqua
+* Added "Sent to Eloqua?" meta column to display submissions status on Entries View
+* Added additional debug detail when submissions fail to be received by Eloqua
+
 = 1.3.2 =
 * Fixed bug where form list from Eloqua wouldn't refresh with latest forms
 

@@ -51,6 +51,7 @@ class GFEloqua extends GFFeedAddOn {
 		$this->eloqua = new Eloqua_API( $this->get_connection_string(), $use_oauth );
 
 		add_action( 'wp_ajax_gfeloqua_clear_transient', array( $this, 'clear_eloqua_transient' ) );
+		add_action( 'wp_ajax_gfeloqua_resubmit_entry', array( $this, 'resubmit_entry' ) );
 
 		if( $this->is_detail_page() ){
 			wp_enqueue_script( 'gform_conditional_logic' );
@@ -75,6 +76,9 @@ class GFEloqua extends GFFeedAddOn {
 
 		// entry detail
 		add_action( 'gform_entry_detail', array( $this, 'entry_notes' ), 10, 2 );
+
+		// entry meta (for column)
+		add_action( 'gform_entry_meta', array( $this, 'add_success_meta' ), 10, 2 );
 	}
 
 	/**
@@ -159,7 +163,8 @@ class GFEloqua extends GFFeedAddOn {
 	function enqueue_conditions(){
 		return array(
 			array( 'query' => 'page=gf_edit_forms&view=settings&subview=' . $this->_slug ),
-			array( 'query' => 'page=gf_settings&subview=' . $this->_slug )
+			array( 'query' => 'page=gf_settings&subview=' . $this->_slug ),
+			array( 'query' => 'page=gf_entries&view=entry' )
 		);
 	}
 
@@ -1099,16 +1104,21 @@ class GFEloqua extends GFFeedAddOn {
 			$errors = $this->eloqua->get_errors();
 
 			if( ! $errors )
-				$errors = array( __( 'Unknown error sending data to Eloqua.', 'gfeloqua' ) );
+				$errors = array( __( 'Unknown error sending data to Eloqua. <a href="#gfeloqua-note-detail" class="toggle-note-detail">See Debug Info</a><div class="gfeloqua-note-detail" style="display:none;">RESPONSE: <pre>' . print_r( $this->eloqua->last_response, true ) . '</pre></div>', 'gfeloqua' ) );
 
 			$this->log_entry_notes( $entry['id'], $errors, $form['id'] );
+			gform_update_meta( $entry['id'], GFELOQUA_OPT_PREFIX . 'success', 'Failed.', $form['id'] );
 
 			//do_action( 'log_debug', $last_error, $entry );
 
 		} else {
-			$this->log_entry_notes( $entry['id'], array( 'Data successfully sent to Eloqua!' ), $form['id'] );
+			$this->mark_as_sent( $entry['id'], $form['id'] );
 		}
 
+	}
+
+	function mark_as_sent( $entry_id, $form_id = NULL ){
+		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'success', 'Success!', $form_id );
 	}
 
 	/**
@@ -1185,6 +1195,16 @@ class GFEloqua extends GFFeedAddOn {
 	}
 
 	/**
+	 * Erases all entry notes
+	 * @param  int $entry_id   Entry ID
+	 * @param  int $form_id    GF Form ID
+	 * @return void
+	 */
+	function clear_entry_notes( $entry_id, $form_id = NULL ){
+		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'notes', array(), $form_id );
+	}
+
+	/**
 	 * Grab GFEloqua Notes from Entry Meta
 	 * @param  int $entry_id Entry ID
 	 * @return array Notes
@@ -1210,8 +1230,106 @@ class GFEloqua extends GFFeedAddOn {
 			if( ! $notes )
 				return;
 
+			$success = $this->is_successful_submission( $entry['id'], $notes );
+
+			// override the notes with the success message.
+			if( $success )
+				$notes = array( __( 'Data successfully sent to Eloqua!', 'gfeloqua' ) );
+
 			$view = GFELOQUA_PATH . '/views/entry-notes.php';
+			$notes_display = GFELOQUA_PATH . '/views/notes-display.php';
+
 			include( $view );
 		}
+	}
+
+	/**
+	 * Determine if the submission is successful
+	 * @param  int $entry_id   Entry ID
+	 * @param  array   $notes    Notes to check for successfule
+	 * @return boolean           [description]
+	 */
+	function is_successful_submission( $entry_id, $notes = array() ){
+		$success = gform_get_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'success' );
+
+		if( $success === 1 || strpos( strtolower( $success ), 'success' ) !== false )
+			return true;
+
+		if( ! $notes )
+			$notes = $this->get_entry_notes( $entry_id );
+
+		if( $success === 0 || strpos( strtolower( $success ), 'failed' ) !== false ){
+			$success = false;
+		} elseif( count( $notes ) ) { // legacy support
+			foreach( $notes as $note ){
+				if( is_string( $note ) ) {
+					if( strpos( $note, 'Data successfully sent' ) !== false ){
+						$success = true;
+
+						// mark it as successful to future-proof
+						$this->mark_as_sent( $entry_id );
+						break;
+					} elseif( strpos( $note, 'Unknown error' ) !== false ){
+						$success = false;
+					}
+				}
+			}
+		}
+
+		return $success;
+	}
+
+	/**
+	 * Ajax Method to retry entry submission
+	 * @return json
+	 */
+	function resubmit_entry(){
+		$entry_id = isset( $_GET['entry_id'] ) && $_GET['entry_id'] ? (int) sanitize_text_field( $_GET['entry_id'] ) : false;
+		$form_id = isset( $_GET['form_id'] ) && $_GET['form_id'] ? (int) sanitize_text_field( $_GET['form_id'] ) : false;
+
+		if( ! $entry_id || ! $form_id )
+			return false;
+
+		// prevent duplicate resubmissions
+		if( $this->is_successful_submission( $entry_id ) )
+			return false;
+
+		// gather the vars we need for resubmission
+		$feeds = GFAPI::get_feeds( NULL, $form_id, $this->_slug );
+
+		if( ! $feeds )
+			return false;
+
+		$feed = $feeds[0];
+		$entry = GFAPI::get_entry( $entry_id );
+		$form = GFAPI::get_form( $form_id );
+
+		// re-attempt to submit the data
+		$this->process_feed( $feed, $entry, $form );
+
+		// grab a new copy of the notes
+		$notes = $this->get_entry_notes( $entry_id );
+
+		ob_start();
+		$notes_display = GFELOQUA_PATH . '/views/notes-display.php';
+		include( $notes_display );
+
+		$response = array(
+			'notes' => ob_get_clean(),
+			'success' => $this->is_successful_submission( $entry_id )
+		);
+
+		wp_send_json( $response );
+		exit();
+	}
+
+	function add_success_meta( $meta, $form_id ){
+		$meta[ GFELOQUA_OPT_PREFIX . 'success'] = array(
+			'label' => __( 'Sent to Eloqua?', 'gfeloqua' ),
+			'is_numeric' => false,
+			'update_entry_meta_callback' => 'update_entry_meta',
+			'is_default_column' => false
+		);
+		return $meta;
 	}
 }
