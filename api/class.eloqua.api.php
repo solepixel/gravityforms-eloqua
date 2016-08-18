@@ -31,6 +31,8 @@ class Eloqua_API {
 
 	public $errors = array();
 
+	public $last_response = false;
+
 	function __construct( $authstring = '', $use_oauth = false ){
 		if( $authstring )
 			$this->authstring = $authstring;
@@ -69,11 +71,15 @@ class Eloqua_API {
 		if( ! $connection )
 			$connection = get_transient( 'gfeloqua_connection' );
 
-		if( ! $connection  )
+		if( ! $connection  ){
+			$this->errors[] = __( 'Connection to Eloqua does not exist.', 'gfeloqua' );
 			return false;
+		}
 
-		if( ! isset( $connection->urls ) )
+		if( ! isset( $connection->urls ) ){
+			$this->errors[] = __( 'Connection URLs not setup', 'gfeloqua' );
 			return false;
+		}
 
 		$this->_setup_urls( $connection->urls );
 
@@ -97,23 +103,30 @@ class Eloqua_API {
 
 		$this->connection = new WP_Http();
 		$response = $this->connection->request( $this->get_auth_url(), $this->connection_args );
+		$this->last_response = $response;
 
 		if( is_wp_error( $response ) ){
-			$this->errors[] = 'WP_Http Error: ' . $response->get_error_message();
+			$this->errors[] = 'WP_Http Error: ' . $response->get_error_message() . ' (' . $response->get_error_code() . ')';
 			return false;
 		}
 
-		$connection = json_decode( $response['body'] );
+		if( $this->is_json( $response['body'] ) ){
+			$connection = json_decode( $response['body'] );
+		} else {
+			$connection = $response['body'];
+		}
 
 		if( is_object( $connection ) )
 			return $this->init( $connection );
 
-		// Looks like the credentials are bad.
-		if( is_string( $connection ) && strpos( strtolower( $connection ), 'not authenticated' ) !== false )
+		// Looks like the credentials could be bad.
+		if( is_string( $connection ) && strpos( strtolower( $connection ), 'not authenticated' ) !== false ){
+			$this->errors[] = __( 'Not Authenticated: Please check your Eloqua credentials. If you have confirmed valid Eloqua credentials, it\'s possible your OAUTH token has expired and needs to be reset.' , 'gfeloqua' );
 			return false;
+		}
 
 		// Something went wrong. Probably an error
-		#echo $connection;
+		$this->errors[] = $connection;
 
 		return false;
 
@@ -143,15 +156,23 @@ class Eloqua_API {
 		}
 
 		$response = $this->connection->request( $url, $args );
+		$this->last_response = $response;
 
-		if( ! $data = $this->validate_response( $response ) ){
-			if( is_string( $response ) ){
-				$this->errors[] = $response;
-			} else {
-				$this->errors[] = 'Response Validation Failed.';
-			}
-
+		if( is_wp_error( $response ) ){
+			$this->errors[] = 'WP_Http Error: ' . $response->get_error_message() . ' (' . $response->get_error_code() . ')';
 			return false;
+		}
+
+		if( $data = $this->validate_response( $response ) ){
+			if( ! is_object( $data ) ){
+				if( is_string( $response ) ){
+					$this->errors[] = __( 'API Response Error', 'gfeloqua' ) . ': ' . $response;
+				} else {
+					$this->errors[] = __( 'Response Validation Failed.', 'gfeloqua' );
+				}
+
+				return false;
+			}
 		}
 
 		return $data;
@@ -166,7 +187,14 @@ class Eloqua_API {
 
 				// 201 = "Created"
 				if( in_array( $response['response']['code'], array( '200', '201', '202' ) ) && $response['body'] ){
-					$return = json_decode( $response['body'] );
+					if( $this->is_json( $response['body'] ) ){ // valid response from Eloqua
+						$return = json_decode( $response['body'] );
+					} elseif( is_string( $response['body'] ) ){ // Error message
+						$return = trim( $response['body'], ' \t\n\r\0\x0B"' );
+					} else { // something else.
+						$return = $response['body'];
+					}
+
 				}
 
 			}
@@ -174,6 +202,15 @@ class Eloqua_API {
 		}
 
 		return apply_filters( 'gfeloqua_validate_response', $return, $response );
+	}
+
+	public function is_json( $string ){
+		if( ! is_string( $string ) )
+			return false;
+		if( substr( $string, 0, 1 ) !== '{' )
+			return false;
+
+		return true;
 	}
 
 	public function is_valid_data( $data ){
@@ -288,6 +325,7 @@ class Eloqua_API {
 
 	public function create_contact( $contact ){
 		$response = $this->_call( 'data/contact', $contact, 'POST' );
+
 		if( $response )
 			return true;
 		else

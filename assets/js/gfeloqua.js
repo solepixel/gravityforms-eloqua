@@ -115,10 +115,18 @@ jQuery(function($){
 		});
 	}
 
-	$('a.toggle-note-detail').on('click', function(e){
-		e.preventDefault();
-		$(this).next('.gfeloqua-note-detail').slideToggle('fast');
-	});
+	function gfeloqua_bind_note_detail_toggle(){
+		$('a.toggle-debug-detail,a.toggle-note-detail').off('click').on('click', function(e){
+			e.preventDefault();
+			if( $(this).hasClass( 'toggle-note-detail' ) ){
+				$(this).next('.gfeloqua-note-detail').slideToggle('fast');
+			} else {
+				$(this).next('.gfeloqua-debug-detail').slideToggle('fast');
+			}
+		});
+	}
+
+	gfeloqua_bind_note_detail_toggle();
 
 	$('.gfeloqua-retry').on('click', function(e){
 		e.preventDefault();
@@ -135,10 +143,39 @@ jQuery(function($){
 				form_id : form_id
 			},
 			success: function( response ){
-				if( response.success )
+				if( response.success ){
+					$('.gfeloqua-retries').remove();
 					$btn.remove();
+				} else {
+					$('.gfeloqua-retries span').html( response.retries );
+				}
 
 				$('#gfeloqua-notes').html( response.notes );
+				gfeloqua_bind_note_detail_toggle();
+			}
+		});
+	});
+
+	$('.gfeloqua-false-positive').on('click', function(e){
+		e.preventDefault();
+		if( ! confirm( gfeloqua_strings.confirm_reset ) )
+			return false;
+
+		var $btn = $(this),
+			entry_id = $btn.data('entry-id'),
+			form_id = $btn.data('form-id');
+
+		$.ajax({
+			url: gfeloqua_strings.ajax_url,
+			data: {
+				action: 'gfeloqua_reset_entry',
+				entry_id : entry_id,
+				form_id : form_id
+			},
+			success: function( response ){
+				if( response.success ){
+					location.reload();
+				}
 			}
 		});
 	});

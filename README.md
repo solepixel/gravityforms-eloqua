@@ -4,6 +4,19 @@ This will integrate Gravity Forms with your Eloqua forms.
 
 ## Changelog
 
+### 1.5.1
+  * Fixed a bug when refreshing OAuth token
+  * FIxed a bug with admin notification
+
+### 1.5.0
+  * Completely revamped Debugger/Entry Notes with a Custom Debugger Class
+  * Added additional debugging info to various places
+  * Attempted to fix false positives
+  * Added a button to reset the entry status in the case of a false positive, so a resubmission can be done and debug notes can be reviewed.
+  * Removed some duplicate debugging comments
+  * Fixed a few typos
+  * Added visual queue of unlimited retries.
+
 ### 1.4.2
   * Removed Github Access Token
 
@@ -72,3 +85,7 @@ This will integrate Gravity Forms with your Eloqua forms.
   * Launched plugin
 
 Eloqua Developer Documentation is here: http://docs.oracle.com/cloud/latest/marketingcs_gs/OMCAB/index.html
+
+## Help Support the Plugin
+
+https://www.paypal.me/briandichiara

@@ -18,10 +18,24 @@ table.gforms_form_settings .settings-field-map-table th {
 	padding-left:0;
 }
 
-.gfeloqua-failed {
+.gfeloqua-retry,
+.gfeloqua-false-positive {
+	font-weight: normal;
+}
+
+.gfeloqua-right {
 	float:right;
 }
-.gfeloqua-failed strong {
+.gfeloqua-right strong {
 	display: inline-block;
 	margin-right:10px;
+	line-height: 2.05;
+}
+
+.gfeloqua-note-detail,
+.gfeloqua-debug-detail {
+	background-color: #EEE;
+	max-height: 300px;
+	overflow: auto;
+	padding: 15px;
 }
