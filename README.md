@@ -1,6 +1,7 @@
 # Gravity Forms Eloqua
 
-This will integrate Gravity Forms with your Eloqua forms.
+This will integrate Gravity Forms with your Eloqua forms. To download, head on over to the Releases page:  
+[Get Latest Version](https://github.com/solepixel/gravityforms-eloqua/releases)
 
 ## Changelog
 
