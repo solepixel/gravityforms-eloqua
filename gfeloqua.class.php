@@ -1623,7 +1623,7 @@ class GFEloqua extends GFFeedAddOn {
 			return $entry_meta;
 		}
 
-		$meta[ GFELOQUA_OPT_PREFIX . 'success' ] = array(
+		$entry_meta[ GFELOQUA_OPT_PREFIX . 'success' ] = array(
 			'label'             => __( 'Sent to Eloqua?', 'gfeloqua' ),
 			'is_numeric'        => false,
 			'is_default_column' => false
