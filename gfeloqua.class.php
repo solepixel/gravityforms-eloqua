@@ -1664,16 +1664,19 @@ class GFEloqua extends GFFeedAddOn {
 
 		$forms = array();
 		foreach( $feeds as $feed ){
-			if( ! in_array( $feed['form_id'] ) )
+			if( isset( $feed['form_id'] ) && is_array( $feed['form_id'] ) && ! in_array( $feed['form_id'] ) )
 				$forms[] = $feed['form_id'];
 		}
 
 		$entries = $this->get_failed_entries( $forms );
 
+		if ( ! is_array( $entries ) ) {
+			return;
+		}
+
 		foreach( $entries as $entry ){
 			$this->resubmit_entry( $entry['id'], $entry['form_id'] );
 		}
-
 	}
 
 	/**
@@ -1682,13 +1685,17 @@ class GFEloqua extends GFFeedAddOn {
 	 * @return array        Entries
 	 */
 	function get_failed_entries( $forms = array() ){
+
+		if ( empty( $forms ) ) {
+			return;
+		}
 		return GFAPI::get_entries( $forms, array(
 			'field_filters' => array(
 				'mode' => 'any',
 				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => 0 ),
 				array( 'key' => GFELOQUA_OPT_PREFIX . 'success', 'value' => $this->text_for_failed )
 			)
-		), array(), array( 'page_size' => 50 ) );
+		), null, array( 'page_size' => 50 ) );
 	}
 
 	/**
