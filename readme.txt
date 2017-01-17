@@ -35,6 +35,9 @@ Nobody has asked any questions frequently.
 No screenshots at this time.
 
 == Upgrade Notice ==
+= 1.5.2 =
+* Fixed a PHP warning which would occur when the entry meta was being processed during submission.
+
 = 1.5.1 =
 * Fixed a bug when refreshing OAuth token
 * FIxed a bug with admin notification

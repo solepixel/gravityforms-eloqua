@@ -98,8 +98,6 @@ class GFEloqua extends GFFeedAddOn {
 		// entry detail
 		add_action( 'gform_entry_detail', array( $this, 'entry_notes' ), 10, 2 );
 
-		// entry meta (for column)
-		add_action( 'gform_entry_meta', array( $this, 'add_success_meta' ), 10, 2 );
 	}
 
 	/**
@@ -1610,20 +1608,28 @@ class GFEloqua extends GFFeedAddOn {
 		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'retries', $attempts, $form_id );
 	}
 
-	function add_success_meta( $meta, $form_id ){
-		$feeds = GFAPI::get_feeds( NULL, $form_id, $this->_slug );
+	/**
+	 * Add the "Sent to Eloqua" entry meta property.
+	 *
+	 * @param array $entry_meta An array of entry meta already registered with the gform_entry_meta filter.
+	 * @param int $form_id The id of the current form.
+	 *
+	 * @return array
+	 */
+	public function get_entry_meta( $entry_meta, $form_id ) {
+		$feeds = $this->get_feeds();
 
-		if( ! $feeds )
-			return $meta;
+		if ( ! $feeds ) {
+			return $entry_meta;
+		}
 
-		$meta[ GFELOQUA_OPT_PREFIX . 'success'] = array(
-			'label' => __( 'Sent to Eloqua?', 'gfeloqua' ),
-			'is_numeric' => false,
-			'update_entry_meta_callback' => 'update_entry_meta',
+		$meta[ GFELOQUA_OPT_PREFIX . 'success' ] = array(
+			'label'             => __( 'Sent to Eloqua?', 'gfeloqua' ),
+			'is_numeric'        => false,
 			'is_default_column' => false
 		);
 
-		return $meta;
+		return $entry_meta;
 	}
 
 	function add_extra_cron_schedule( $schedules ){
