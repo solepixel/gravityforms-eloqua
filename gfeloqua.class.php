@@ -1410,6 +1410,9 @@ class GFEloqua extends GFFeedAddOn {
 		$notes = array_merge( $notes, $new_notes );
 
 		gform_update_meta( $entry_id, GFELOQUA_OPT_PREFIX . 'notes', $notes, $form_id );
+
+		// Added hook to allow custom error logging.
+		do_action( 'gravityforms_eloqua_log_entry_notes', $this->debugger, $entry_id, $form_id );
 	}
 
 	/**
