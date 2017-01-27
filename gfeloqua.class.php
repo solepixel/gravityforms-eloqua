@@ -1670,10 +1670,6 @@ class GFEloqua extends GFFeedAddOn {
 
 		$entries = $this->get_failed_entries( $forms );
 
-		if ( ! is_array( $entries ) ) {
-			return;
-		}
-
 		foreach( $entries as $entry ){
 			$this->resubmit_entry( $entry['id'], $entry['form_id'] );
 		}
@@ -1687,7 +1683,7 @@ class GFEloqua extends GFFeedAddOn {
 	function get_failed_entries( $forms = array() ){
 
 		if ( empty( $forms ) ) {
-			return;
+			return array();
 		}
 		return GFAPI::get_entries( $forms, array(
 			'field_filters' => array(
