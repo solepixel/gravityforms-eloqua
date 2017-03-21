@@ -109,7 +109,7 @@ class GFEloqua extends GFFeedAddOn {
 	function insert_version_data(){
 		$update_info = get_transient( 'gform_update_info' );
 
-		if( ! $update_info )
+		if( ! $update_info || ! isset( $update_info['body'] ) )
 			return;
 
 		$body = json_decode( $update_info['body'] );
