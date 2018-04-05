@@ -1,7 +1,15 @@
 # Gravity Forms Eloqua
 
+---
+
+## [Premium Version Now Available!](https://briandichiara.com/product/gravityforms-eloqua/)
+
+This repository will no longer be maintained in lieu of a premium version of this plugin! Check out the link above for more details!
+
+---
+
 This will integrate Gravity Forms with your Eloqua forms. To download, head on over to the Releases page:  
-[Get Latest Version](https://github.com/solepixel/gravityforms-eloqua/releases)
+[Get Last Unsupported Version](https://github.com/solepixel/gravityforms-eloqua/releases)
 
 ## Changelog
 
@@ -90,3 +98,4 @@ Eloqua Developer Documentation is here: http://docs.oracle.com/cloud/latest/mark
 ## Help Support the Plugin
 
 https://www.paypal.me/briandichiara
+Buy it here: https://briandichiara.com/product/gravityforms-eloqua/
